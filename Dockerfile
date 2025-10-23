@@ -1,13 +1,14 @@
 FROM python:3.9-slim
 
-# Install Firefox and geckodriver
+# Install Chromium and create swap
 RUN apt-get update && apt-get install -y \
-    firefox-esr \
+    chromium \
+    chromium-driver \
     wget \
-    && wget -q https://github.com/mozilla/geckodriver/releases/download/v0.36.0/geckodriver-v0.36.0-linux64.tar.gz \
-    && tar -xzf geckodriver-*.tar.gz -C /usr/local/bin/ \
-    && chmod +x /usr/local/bin/geckodriver \
-    && rm geckodriver-*.tar.gz \
+    && fallocate -l 1G /swapfile \
+    && chmod 600 /swapfile \
+    && mkswap /swapfile \
+    && swapon /swapfile \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
