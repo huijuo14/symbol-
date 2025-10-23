@@ -1,6 +1,6 @@
 FROM python:3.9-slim
 
-# Install Chrome and dependencies WITH curl
+# Install Chrome and dependencies
 RUN apt-get update && apt-get install -y \
     wget \
     curl \
@@ -24,13 +24,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Install ChromeDriver (match Chrome version)
-RUN CHROME_VERSION=$(google-chrome --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+') \
-    && CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION") \
-    && wget -N https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip -P /tmp/ \
-    && unzip /tmp/chromedriver_linux64.zip -d /usr/local/bin/ \
-    && rm /tmp/chromedriver_linux64.zip \
-    && chmod +x /usr/local/bin/chromedriver
+# Install ChromeDriver - SIMPLE VERSION (no version detection)
+RUN wget -q https://storage.googleapis.com/chrome-for-testing-public/122.0.6261.69/linux64/chromedriver-linux64.zip -P /tmp/ \
+    && unzip /tmp/chromedriver-linux64.zip -d /tmp/ \
+    && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/ \
+    && chmod +x /usr/local/bin/chromedriver \
+    && rm -rf /tmp/chromedriver*
 
 WORKDIR /app
 COPY . .
