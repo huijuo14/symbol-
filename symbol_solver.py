@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-AdShare Symbol Game Solver - Chromium Optimized Version
-With all features and memory optimization
+AdShare Symbol Game Solver - Alpine Chromium Version
+With fixed user directory and memory optimization
 """
 
 import os
@@ -10,6 +10,7 @@ import random
 import logging
 import re
 import threading
+import tempfile
 from flask import Flask, jsonify, request
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -33,6 +34,7 @@ CONFIG = {
 class SymbolGameSolver:
     def __init__(self):
         self.driver = None
+        self.user_data_dir = None
         self.state = {
             'click_count': 0,
             'session_start_time': time.time() * 1000,
@@ -86,6 +88,13 @@ class SymbolGameSolver:
         def stop_solver():
             self.state['is_running'] = False
             self.state['status'] = 'stopped'
+            # Cleanup user data directory
+            if self.user_data_dir and os.path.exists(self.user_data_dir):
+                import shutil
+                try:
+                    shutil.rmtree(self.user_data_dir)
+                except:
+                    pass
             if self.driver:
                 try:
                     self.driver.quit()
@@ -103,6 +112,13 @@ class SymbolGameSolver:
                     if self.driver:
                         self.driver.quit()
                         self.driver = None
+                    # Cleanup test directory
+                    if self.user_data_dir and os.path.exists(self.user_data_dir):
+                        import shutil
+                        try:
+                            shutil.rmtree(self.user_data_dir)
+                        except:
+                            pass
                     return jsonify({'status': 'success', 'message': 'Chromium test passed'})
                 else:
                     return jsonify({'status': 'failed', 'message': 'Chromium test failed'})
@@ -117,34 +133,29 @@ class SymbolGameSolver:
         self.logger = logging.getLogger(__name__)
 
     def setup_browser(self):
-        """Setup Chromium with memory optimization"""
-        self.logger.info("🖥️ Starting Chromium with memory optimization...")
+        """Setup Chromium for Alpine with unique user directory"""
+        self.logger.info("🖥️ Starting Chromium on Alpine...")
         
         options = Options()
         
-        # Memory optimization for Chromium
+        # Set Chromium binary location for Alpine
+        options.binary_location = '/usr/bin/chromium-browser'
+        
+        # Memory optimization
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--headless=new")
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-images")
-        options.add_argument("--disable-background-timer-throttling")
-        options.add_argument("--disable-backgrounding-occluded-windows")
-        options.add_argument("--disable-renderer-backgrounding")
-        options.add_argument("--memory-pressure-off")
-        options.add_argument("--max_old_space_size=256")
-        
-        # Performance optimizations
-        options.add_argument("--aggressive-cache-discard")
-        options.add_argument("--disable-features=VizDisplayCompositor")
-        options.add_argument("--disable-threaded-animation")
-        options.add_argument("--disable-threaded-scrolling")
-        options.add_argument("--disable-animations")
         options.add_argument("--single-process")
+        options.add_argument("--memory-pressure-off")
+        options.add_argument("--max_old_space_size=128")
+        options.add_argument("--window-size=400,300")
         
-        # Window size
-        options.add_argument("--window-size=800,600")
+        # FIX: Create unique user data directory
+        self.user_data_dir = tempfile.mkdtemp(prefix="chromium_data_")
+        options.add_argument(f"--user-data-dir={self.user_data_dir}")
         
         # Stealth options
         options.add_argument("--disable-blink-features=AutomationControlled")
@@ -159,7 +170,7 @@ class SymbolGameSolver:
             self.driver.set_script_timeout(30)
             
             # Test browser
-            self.logger.info("📄 Testing Chromium with about:blank...")
+            self.logger.info("📄 Testing Chromium...")
             self.driver.get("about:blank")
             time.sleep(2)
             
@@ -173,6 +184,13 @@ class SymbolGameSolver:
             
         except Exception as e:
             self.logger.error(f"❌ Chromium setup failed: {e}")
+            # Cleanup on failure
+            if self.user_data_dir and os.path.exists(self.user_data_dir):
+                import shutil
+                try:
+                    shutil.rmtree(self.user_data_dir)
+                except:
+                    pass
             if self.driver:
                 try:
                     self.driver.quit()
@@ -190,7 +208,7 @@ class SymbolGameSolver:
     def force_login(self):
         """Login with Chromium"""
         try:
-            self.logger.info("🔐 Starting login process with Chromium...")
+            self.logger.info("🔐 Starting login process...")
             
             # Navigate to login page
             self.driver.get("https://adsha.re/login")
@@ -407,7 +425,7 @@ class SymbolGameSolver:
 
     def game_loop(self):
         """Main game solving loop"""
-        self.logger.info("🎮 Starting game solver loop with Chromium...")
+        self.logger.info("🎮 Starting game solver loop...")
         self.state['status'] = 'running'
         
         fail_streak = 0
@@ -461,7 +479,7 @@ class SymbolGameSolver:
                 return
             
             # Start game loop
-            self.logger.info("🎯 Starting game solving with Chromium...")
+            self.logger.info("🎯 Starting game solving...")
             self.game_loop()
             
         except Exception as e:
@@ -471,6 +489,13 @@ class SymbolGameSolver:
             if self.driver:
                 try:
                     self.driver.quit()
+                except:
+                    pass
+            # Cleanup user data directory
+            if self.user_data_dir and os.path.exists(self.user_data_dir):
+                import shutil
+                try:
+                    shutil.rmtree(self.user_data_dir)
                 except:
                     pass
 
