@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 AdShare Symbol Game Solver - Advanced Auto-Solver Pro
-Fixed version with correct Chrome options
+Fixed version with dynamic password field detection
 """
 
 import os
@@ -18,6 +18,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
+from bs4 import BeautifulSoup
 
 # Enhanced Security & Anti-detection Configuration
 CONFIG = {
@@ -78,6 +79,10 @@ class AdvancedSymbolGameSolver:
             'accuracy': []
         }
         
+        # Login credentials
+        self.email = "loginallapps@gmail.com"
+        self.password = "@Sd2007123"
+        
         self.setup_logging()
     
     def setup_logging(self):
@@ -89,12 +94,12 @@ class AdvancedSymbolGameSolver:
         self.logger = logging.getLogger(__name__)
     
     def setup_browser(self):
-        """Setup Chrome with advanced stealth features - FIXED VERSION"""
+        """Setup Chrome with advanced stealth features"""
         self.logger.info("🌐 Starting Chrome with advanced stealth...")
         
         options = Options()
         
-        # Basic stealth options - CORRECTED
+        # Basic stealth options
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-blink-features=AutomationControlled")
@@ -172,6 +177,171 @@ class AdvancedSymbolGameSolver:
         
         time.sleep(delay)
         return delay
+
+    def force_login(self):
+        """Advanced login with dynamic password field detection - REPLICATING YOUR WORKING CODE"""
+        try:
+            self.logger.info("🔐 LOGIN: Attempting login with dynamic field detection...")
+            
+            # Navigate to login page
+            login_url = "https://adsha.re/login"
+            self.driver.get(login_url)
+            
+            # Wait for page to load
+            WebDriverWait(self.driver, 20).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            
+            self.human_delay(2, 4)
+            
+            # Get page source and parse with BeautifulSoup
+            page_source = self.driver.page_source
+            soup = BeautifulSoup(page_source, 'html.parser')
+            
+            # Find the login form
+            form = soup.find('form', {'name': 'login'})
+            if not form:
+                self.logger.error("❌ LOGIN: Could not find login form")
+                return False
+            
+            # Find the dynamic password field name
+            password_field_name = None
+            for field in form.find_all('input'):
+                field_name = field.get('name', '')
+                field_value = field.get('value', '')
+                
+                # Look for password field - dynamic detection logic
+                if field_value == 'Password' and field_name != 'mail' and field_name:
+                    password_field_name = field_name
+                    break
+            
+            if not password_field_name:
+                self.logger.error("❌ LOGIN: Could not detect password field name")
+                return False
+            
+            self.logger.info(f"🔑 LOGIN: Detected password field name: {password_field_name}")
+            
+            # Fill email field
+            email_selectors = [
+                "input[name='mail']",
+                "input[type='email']",
+                "input[placeholder*='email' i]"
+            ]
+            
+            email_filled = False
+            for selector in email_selectors:
+                try:
+                    email_field = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    email_field.clear()
+                    email_field.send_keys(self.email)
+                    self.logger.info("✅ LOGIN: Email entered")
+                    email_filled = True
+                    break
+                except:
+                    continue
+            
+            if not email_filled:
+                self.logger.error("❌ LOGIN: Could not find email field")
+                return False
+            
+            self.human_delay(1, 2)
+            
+            # Fill password field using detected name
+            password_selector = f"input[name='{password_field_name}']"
+            try:
+                password_field = self.driver.find_element(By.CSS_SELECTOR, password_selector)
+                password_field.clear()
+                password_field.send_keys(self.password)
+                self.logger.info("✅ LOGIN: Password entered")
+            except:
+                self.logger.error(f"❌ LOGIN: Could not find password field with selector: {password_selector}")
+                return False
+            
+            self.human_delay(1, 2)
+            
+            # Find and click login button
+            login_selectors = [
+                "button[type='submit']",
+                "input[type='submit']",
+                "button",
+                "input[value*='Login']",
+                "input[value*='Sign']"
+            ]
+            
+            login_clicked = False
+            for selector in login_selectors:
+                try:
+                    login_btn = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    if login_btn.is_displayed() and login_btn.is_enabled():
+                        login_btn.click()
+                        self.logger.info("✅ LOGIN: Login button clicked")
+                        login_clicked = True
+                        break
+                except:
+                    continue
+            
+            if not login_clicked:
+                # Fallback: try to submit the form
+                try:
+                    form_element = self.driver.find_element(By.CSS_SELECTOR, "form[name='login']")
+                    form_element.submit()
+                    self.logger.info("✅ LOGIN: Form submitted")
+                    login_clicked = True
+                except:
+                    pass
+            
+            # Wait for login to complete
+            self.human_delay(8, 12)
+            
+            # Check if login successful by navigating to surf page
+            self.driver.get("https://adsha.re/surf")
+            self.human_delay(3, 5)
+            
+            current_url = self.driver.current_url
+            if "surf" in current_url or "dashboard" in current_url:
+                self.logger.info("✅ LOGIN: Successful!")
+                return True
+            else:
+                # Check if we're still on login page
+                if "login" in current_url:
+                    self.logger.error("❌ LOGIN: Failed - still on login page")
+                    return False
+                else:
+                    self.logger.warning("⚠️ LOGIN: May need manual verification, but continuing...")
+                    return True
+                
+        except Exception as e:
+            self.logger.error(f"❌ LOGIN: Error - {e}")
+            return False
+
+    def navigate_to_adshare(self):
+        """Navigate to adsha.re and handle login"""
+        self.logger.info("🌐 Navigating to AdShare...")
+        
+        try:
+            self.driver.get("https://adsha.re/surf")
+            
+            # Wait for page to load
+            WebDriverWait(self.driver, 20).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+            
+            self.human_delay(2, 4)
+            
+            current_url = self.driver.current_url
+            self.logger.info(f"📍 Current URL: {current_url}")
+            
+            # Check if login is needed
+            if "login" in current_url:
+                self.logger.info("🔐 Login required...")
+                return self.force_login()
+            else:
+                self.logger.info("✅ Already on surf page!")
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"❌ Navigation failed: {e}")
+            return False
 
     def is_behavior_suspicious(self):
         """Advanced rate limiting with behavioral analysis"""
@@ -485,142 +655,6 @@ class AdvancedSymbolGameSolver:
             self.state['consecutive_fails'] += 1
             return False
 
-    def navigate_to_adshare(self):
-        """Navigate to adsha.re and handle login"""
-        self.logger.info("🌐 Navigating to AdShare...")
-        
-        try:
-            self.driver.get("https://adsha.re/surf")
-            
-            # Wait for page to load
-            WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
-            
-            self.human_delay(2, 4)
-            
-            current_url = self.driver.current_url
-            self.logger.info(f"📍 Current URL: {current_url}")
-            
-            # Check if login is needed
-            if "login" in current_url:
-                self.logger.info("🔐 Login required...")
-                return self.perform_login()
-            else:
-                self.logger.info("✅ Already on surf page!")
-                return True
-                
-        except Exception as e:
-            self.logger.error(f"❌ Navigation failed: {e}")
-            return False
-
-    def perform_login(self):
-        """Perform login with multiple selector attempts"""
-        try:
-            # Email field
-            email_selectors = [
-                "input[name='mail']",
-                "input[type='email']",
-                "input[placeholder*='email' i]",
-                "input[name='username']",
-                "input[name='email']"
-            ]
-            
-            email_entered = False
-            for selector in email_selectors:
-                try:
-                    email_field = WebDriverWait(self.driver, 5).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-                    )
-                    email_field.clear()
-                    email_field.send_keys("loginallapps@gmail.com")
-                    self.logger.info("✅ Email entered")
-                    email_entered = True
-                    break
-                except:
-                    continue
-            
-            if not email_entered:
-                self.logger.error("❌ Could not find email field")
-                return False
-            
-            self.human_delay(1, 2)
-            
-            # Password field
-            password_selectors = [
-                "input[type='password']",
-                "input[name='password']",
-                "input[placeholder*='password' i]"
-            ]
-            
-            password_entered = False
-            for selector in password_selectors:
-                try:
-                    password_field = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    password_field.clear()
-                    password_field.send_keys("@Sd2007123")
-                    self.logger.info("✅ Password entered")
-                    password_entered = True
-                    break
-                except:
-                    continue
-            
-            if not password_entered:
-                self.logger.error("❌ Could not find password field")
-                return False
-            
-            self.human_delay(1, 2)
-            
-            # Login button
-            login_selectors = [
-                "button[type='submit']",
-                "input[type='submit']",
-                "button:contains('Login')",
-                "button:contains('Sign in')",
-                "input[value*='Login']",
-                "input[value*='Sign in']"
-            ]
-            
-            login_clicked = False
-            for selector in login_selectors:
-                try:
-                    # Try CSS selector first
-                    login_btn = self.driver.find_element(By.CSS_SELECTOR, selector.replace(":contains(", "").replace(")", ""))
-                    login_btn.click()
-                    self.logger.info("✅ Login button clicked")
-                    login_clicked = True
-                    break
-                except:
-                    continue
-            
-            if not login_clicked:
-                # Fallback: try to find any button and click it
-                try:
-                    buttons = self.driver.find_elements(By.TAG_NAME, "button")
-                    for button in buttons:
-                        if button.is_displayed() and button.is_enabled():
-                            button.click()
-                            self.logger.info("✅ Fallback login button clicked")
-                            login_clicked = True
-                            break
-                except:
-                    pass
-            
-            # Wait for login to complete
-            self.human_delay(8, 12)
-            
-            # Check if login successful
-            if "surf" in self.driver.current_url or "dashboard" in self.driver.current_url:
-                self.logger.info("✅ Login successful!")
-                return True
-            else:
-                self.logger.warning("⚠️ Login may need manual verification")
-                return True  # Continue anyway
-                
-        except Exception as e:
-            self.logger.error(f"❌ Login failed: {e}")
-            return False
-
     def session_management(self):
         """Manage session rotation and rate limiting"""
         while self.state['is_running']:
@@ -654,7 +688,7 @@ class AdvancedSymbolGameSolver:
         consecutive_fails = 0
         cycle_count = 0
         
-        while self.state['is_running'] and consecutive_fails < 10:  # Increased fail threshold
+        while self.state['is_running'] and consecutive_fails < 10:
             try:
                 # Refresh page every 10 minutes
                 if cycle_count % 20 == 0 and cycle_count > 0:
