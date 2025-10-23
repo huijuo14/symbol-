@@ -164,16 +164,7 @@ class AdvancedSymbolGameSolver:
         options.add_argument("--memory-pressure-off")
         options.add_argument("--max_old_space_size=256")
         
-        # Block media
-        prefs = {
-            'profile.default_content_setting_values': {
-                'images': 2,
-                'plugins': 2,
-                'popups': 2,
-                'geolocation': 2,
-                'notifications': 2,
-                'media_stream': 2,
-            }
+       
         }
         options.add_experimental_option('prefs', prefs)
         options.add_argument("--window-size=1200,800")
