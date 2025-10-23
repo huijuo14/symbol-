@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 AdShare Symbol Game Solver - Advanced Auto-Solver Pro
-Exact replica of the userscript features with perfect accuracy
+Fixed version with correct Chrome options
 """
 
 import os
@@ -9,6 +9,7 @@ import time
 import random
 import logging
 import re
+import math
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -88,16 +89,17 @@ class AdvancedSymbolGameSolver:
         self.logger = logging.getLogger(__name__)
     
     def setup_browser(self):
-        """Setup Chrome with advanced stealth features"""
+        """Setup Chrome with advanced stealth features - FIXED VERSION"""
         self.logger.info("🌐 Starting Chrome with advanced stealth...")
         
         options = Options()
         
-        # Basic stealth options
+        # Basic stealth options - CORRECTED
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_exclude_argument("enable-automation")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
         options.add_argument("--disable-extensions")
         
         # Headless mode
@@ -111,6 +113,10 @@ class AdvancedSymbolGameSolver:
         options.add_argument("--allow-running-insecure-content")
         options.add_argument("--disable-notifications")
         options.add_argument("--disable-popup-blocking")
+        options.add_argument("--disable-browser-side-navigation")
+        
+        # User agent
+        options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         
         try:
             self.driver = webdriver.Chrome(options=options)
@@ -195,27 +201,6 @@ class AdvancedSymbolGameSolver:
         
         return False
 
-    def generate_mouse_path(self, start_x, start_y, end_x, end_y):
-        """Generate realistic mouse movement path"""
-        path = []
-        steps = 8 + random.randint(0, 8)
-        control_points = 1 + random.randint(0, 2)
-        
-        for i in range(steps + 1):
-            t = i / steps
-            x = start_x + (end_x - start_x) * t
-            y = start_y + (end_y - start_y) * t
-            
-            # Add natural curve
-            if control_points > 0:
-                curve = math.sin(t * math.pi) * (10 + random.random() * 20)
-                x += curve * (random.random() - 0.5)
-                y += curve * (random.random() - 0.5)
-            
-            path.append((int(x), int(y)))
-        
-        return path
-
     def simulate_mouse_movement(self, element):
         """Simulate human mouse movements using ActionChains"""
         if not CONFIG['mimic_mouse_movements']:
@@ -226,32 +211,37 @@ class AdvancedSymbolGameSolver:
             location = element.location
             size = element.size
             
-            start_x = 600  # Center of window
-            start_y = 400
+            # Start from random position on screen
+            start_x = random.randint(100, 500)
+            start_y = random.randint(100, 300)
             end_x = location['x'] + size['width'] / 2
             end_y = location['y'] + size['height'] / 2
             
-            # Create action chain
+            # Create action chain with curved movement
             actions = ActionChains(self.driver)
             
-            # Move to start position
+            # Move to random start position
             actions.move_by_offset(start_x, start_y)
             
-            # Generate curved path
-            steps = 5 + random.randint(0, 5)
+            # Generate curved path with intermediate points
+            steps = 3 + random.randint(0, 4)
             for i in range(steps):
-                t = (i + 1) / steps
-                # Add some randomness to the path
-                current_x = start_x + (end_x - start_x) * t + random.randint(-20, 20)
-                current_y = start_y + (end_y - start_y) * t + random.randint(-20, 20)
-                actions.move_by_offset(current_x - start_x, current_y - start_y)
-                actions.pause(random.uniform(0.02, 0.05))
+                # Calculate intermediate point with some randomness
+                t = (i + 1) / (steps + 1)
+                mid_x = start_x + (end_x - start_x) * t + random.randint(-30, 30)
+                mid_y = start_y + (end_y - start_y) * t + random.randint(-20, 20)
+                
+                actions.move_by_offset(mid_x - start_x, mid_y - start_y)
+                actions.pause(random.uniform(0.05, 0.15))
+                
+                # Update current position
+                start_x, start_y = mid_x, mid_y
             
-            # Final precise movement to element
+            # Final movement to element
             actions.move_to_element(element)
             actions.perform()
             
-            return steps * 25  # Return approximate movement time
+            return steps * 100  # Return approximate movement time in ms
             
         except Exception as e:
             self.logger.warning(f"⚠️ Mouse movement simulation failed: {e}")
@@ -265,10 +255,13 @@ class AdvancedSymbolGameSolver:
             return False
         
         try:
+            # Small pre-click delay
+            self.human_delay(0.5, 1.0)
+            
             # Simulate mouse movement if enabled
             if CONFIG['mimic_mouse_movements']:
                 move_time = self.simulate_mouse_movement(element)
-                self.human_delay(move_time / 1000, move_time / 1000 + 0.1)
+                time.sleep(move_time / 1000)
             
             # Perform the click with variation
             actions = ActionChains(self.driver)
@@ -281,14 +274,18 @@ class AdvancedSymbolGameSolver:
             else:
                 actions.move_to_element(element)
             
-            # Click sequence
+            # Click sequence with slight pauses
             actions.click()
+            actions.pause(0.1)
             actions.perform()
             
             # Update behavior tracking
             self.state['click_count'] += 1
             self.state['last_click_time'] = time.time() * 1000
             self.state['last_action_time'] = time.time() * 1000
+            
+            # Small post-click delay
+            self.human_delay(0.2, 0.5)
             
             return True
             
@@ -301,12 +298,10 @@ class AdvancedSymbolGameSolver:
         if len(str1) == 0 or len(str2) == 0:
             return 0.0
         
-        longer = str1 if len(str1) > len(str2) else str2
-        shorter = str2 if len(str1) > len(str2) else str1
-        
-        # Simple similarity calculation
-        common_chars = sum(1 for a, b in zip(longer, shorter) if a == b)
-        return common_chars / len(longer)
+        # Simple similarity calculation based on common characters
+        common_chars = sum(1 for a, b in zip(str1, str2) if a == b)
+        max_len = max(len(str1), len(str2))
+        return common_chars / max_len if max_len > 0 else 0.0
 
     def compare_symbols(self, question_svg, answer_svg):
         """Enhanced symbol comparison with fuzzy matching"""
@@ -319,21 +314,17 @@ class AdvancedSymbolGameSolver:
             
             # Clean content
             def clean_svg(svg_text):
-                return re.sub(r'\s+', ' ', svg_text).strip().lower()
+                # Remove extra spaces and normalize
+                cleaned = re.sub(r'\s+', ' ', svg_text).strip().lower()
+                # Remove colors and styles for comparison
+                cleaned = re.sub(r'fill:#[a-f0-9]+', '', cleaned, flags=re.IGNORECASE)
+                cleaned = re.sub(r'stroke:#[a-f0-9]+', '', cleaned, flags=re.IGNORECASE)
+                cleaned = re.sub(r'style="[^"]*"', '', cleaned)
+                cleaned = re.sub(r'class="[^"]*"', '', cleaned)
+                return cleaned
             
             clean_question = clean_svg(question_content)
             clean_answer = clean_svg(answer_content)
-            
-            # Remove colors and styles for comparison
-            clean_question = re.sub(r'fill:#[a-f0-9]+', '', clean_question, flags=re.IGNORECASE)
-            clean_question = re.sub(r'stroke:#[a-f0-9]+', '', clean_question, flags=re.IGNORECASE)
-            clean_question = re.sub(r'style="[^"]*"', '', clean_question)
-            clean_question = re.sub(r'class="[^"]*"', '', clean_question)
-            
-            clean_answer = re.sub(r'fill:#[a-f0-9]+', '', clean_answer, flags=re.IGNORECASE)
-            clean_answer = re.sub(r'stroke:#[a-f0-9]+', '', clean_answer, flags=re.IGNORECASE)
-            clean_answer = re.sub(r'style="[^"]*"', '', clean_answer)
-            clean_answer = re.sub(r'class="[^"]*"', '', clean_answer)
             
             # Exact match (preferred)
             if clean_question == clean_answer:
@@ -341,7 +332,7 @@ class AdvancedSymbolGameSolver:
             
             # Fuzzy matching
             similarity = self.calculate_similarity(clean_question, clean_answer)
-            should_match = similarity > CONFIG['minimum_confidence']
+            should_match = similarity >= CONFIG['minimum_confidence']
             
             return {'match': should_match, 'confidence': similarity, 'exact': False}
             
@@ -382,7 +373,8 @@ class AdvancedSymbolGameSolver:
         
         # Return exact match if available
         if exact_matches:
-            return exact_matches[0]  # Return first exact match
+            # Return first exact match (they're all perfect)
+            return exact_matches[0]
         
         # Return best fuzzy match if confidence is high enough
         if best_match and best_match['confidence'] >= CONFIG['minimum_confidence']:
@@ -397,6 +389,7 @@ class AdvancedSymbolGameSolver:
         
         scroll_amount = random.randint(-100, 100)
         self.driver.execute_script(f"window.scrollBy(0, {scroll_amount});")
+        self.human_delay(0.5, 1.0)
 
     def start_cooldown(self, duration=30000):
         """Cooldown management"""
@@ -431,14 +424,17 @@ class AdvancedSymbolGameSolver:
                 return False
             
             # Find question SVG
-            question_svg = self.driver.find_element(By.TAG_NAME, "svg")
+            question_svg = WebDriverWait(self.driver, 5).until(
+                EC.presence_of_element_located((By.TAG_NAME, "svg"))
+            )
+            
             if not question_svg:
                 if CONFIG['enable_console_logs']:
                     self.logger.info("⏳ Waiting for game to load...")
                 return False
             
             # Find all answer links
-            links = self.driver.find_elements(By.CSS_SELECTOR, "a[href*='adsha.re'], a[href*='symbol-matching-game']")
+            links = self.driver.find_elements(By.CSS_SELECTOR, "a[href*='adsha.re'], button, .answer-option, [class*='answer']")
             
             # Find the best possible match with high confidence
             best_match = self.find_best_match(question_svg, links)
@@ -454,7 +450,8 @@ class AdvancedSymbolGameSolver:
                         self.logger.info(f"✅ {match_type} Match! Confidence: {best_match['confidence']*100:.1f}% | Total: {self.state['total_solved']}")
                     
                     # Record timing pattern
-                    self.behavior_patterns['delays'].append(self.get_smart_delay() * 1000)
+                    delay = self.get_smart_delay() * 1000
+                    self.behavior_patterns['delays'].append(delay)
                     if len(self.behavior_patterns['delays']) > 20:
                         self.behavior_patterns['delays'].pop(0)
                     
@@ -478,6 +475,10 @@ class AdvancedSymbolGameSolver:
                 
             return False
             
+        except TimeoutException:
+            if CONFIG['enable_console_logs']:
+                self.logger.info("⏳ Waiting for game elements...")
+            return False
         except Exception as e:
             if CONFIG['enable_console_logs']:
                 self.logger.info(f"❌ Error in solver: {e}")
@@ -520,59 +521,96 @@ class AdvancedSymbolGameSolver:
             email_selectors = [
                 "input[name='mail']",
                 "input[type='email']",
-                "input[placeholder*='email' i]"
+                "input[placeholder*='email' i]",
+                "input[name='username']",
+                "input[name='email']"
             ]
             
+            email_entered = False
             for selector in email_selectors:
                 try:
-                    email_field = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    email_field = WebDriverWait(self.driver, 5).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                    )
                     email_field.clear()
                     email_field.send_keys("loginallapps@gmail.com")
                     self.logger.info("✅ Email entered")
+                    email_entered = True
                     break
                 except:
                     continue
+            
+            if not email_entered:
+                self.logger.error("❌ Could not find email field")
+                return False
             
             self.human_delay(1, 2)
             
             # Password field
             password_selectors = [
                 "input[type='password']",
-                "input[name='password']"
+                "input[name='password']",
+                "input[placeholder*='password' i]"
             ]
             
+            password_entered = False
             for selector in password_selectors:
                 try:
                     password_field = self.driver.find_element(By.CSS_SELECTOR, selector)
                     password_field.clear()
                     password_field.send_keys("@Sd2007123")
                     self.logger.info("✅ Password entered")
+                    password_entered = True
                     break
                 except:
                     continue
+            
+            if not password_entered:
+                self.logger.error("❌ Could not find password field")
+                return False
             
             self.human_delay(1, 2)
             
             # Login button
             login_selectors = [
                 "button[type='submit']",
-                "input[type='submit']"
+                "input[type='submit']",
+                "button:contains('Login')",
+                "button:contains('Sign in')",
+                "input[value*='Login']",
+                "input[value*='Sign in']"
             ]
             
+            login_clicked = False
             for selector in login_selectors:
                 try:
-                    login_btn = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    # Try CSS selector first
+                    login_btn = self.driver.find_element(By.CSS_SELECTOR, selector.replace(":contains(", "").replace(")", ""))
                     login_btn.click()
                     self.logger.info("✅ Login button clicked")
+                    login_clicked = True
                     break
                 except:
                     continue
+            
+            if not login_clicked:
+                # Fallback: try to find any button and click it
+                try:
+                    buttons = self.driver.find_elements(By.TAG_NAME, "button")
+                    for button in buttons:
+                        if button.is_displayed() and button.is_enabled():
+                            button.click()
+                            self.logger.info("✅ Fallback login button clicked")
+                            login_clicked = True
+                            break
+                except:
+                    pass
             
             # Wait for login to complete
             self.human_delay(8, 12)
             
             # Check if login successful
-            if "surf" in self.driver.current_url:
+            if "surf" in self.driver.current_url or "dashboard" in self.driver.current_url:
                 self.logger.info("✅ Login successful!")
                 return True
             else:
@@ -604,6 +642,7 @@ class AdvancedSymbolGameSolver:
                 
             except Exception as e:
                 self.logger.warning(f"⚠️ Session management error: {e}")
+                time.sleep(60)
 
     def keep_session_alive(self):
         """Main game solving loop"""
@@ -615,10 +654,10 @@ class AdvancedSymbolGameSolver:
         consecutive_fails = 0
         cycle_count = 0
         
-        while self.state['is_running'] and consecutive_fails < 5:
+        while self.state['is_running'] and consecutive_fails < 10:  # Increased fail threshold
             try:
                 # Refresh page every 10 minutes
-                if cycle_count % 6 == 0:
+                if cycle_count % 20 == 0 and cycle_count > 0:
                     self.driver.refresh()
                     self.logger.info("🔁 Page refreshed")
                     self.human_delay(3, 5)
@@ -628,24 +667,23 @@ class AdvancedSymbolGameSolver:
                 
                 if game_solved:
                     consecutive_fails = 0
+                    # Success delay
+                    self.human_delay(2, 4)
                 else:
                     consecutive_fails += 1
-                    if consecutive_fails > 0:
-                        self.logger.info(f"❌ No game solved ({consecutive_fails}/5 fails)")
+                    if consecutive_fails > 0 and CONFIG['enable_console_logs']:
+                        self.logger.info(f"❌ No game solved ({consecutive_fails}/10 fails)")
+                    # Longer delay on fail
+                    self.human_delay(5, 8)
                 
                 cycle_count += 1
-                
-                # Wait before next attempt with intelligent delay
-                delay = self.human_delay()
-                if CONFIG['enable_console_logs']:
-                    self.logger.debug(f"⏰ Next attempt in {delay:.2f}s")
                     
             except Exception as e:
                 self.logger.error(f"❌ Monitoring error: {e}")
                 consecutive_fails += 1
-                self.human_delay(30, 60)  # Longer delay on error
+                self.human_delay(10, 15)  # Longer delay on error
         
-        if consecutive_fails >= 5:
+        if consecutive_fails >= 10:
             self.logger.error("🚨 Too many consecutive failures, stopping...")
 
     def run(self):
