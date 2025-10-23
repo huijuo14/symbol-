@@ -1,31 +1,25 @@
-FROM python:3.11-slim
+FROM python:3.9-slim
 
-# Install Chrome without apt-key
+# Install Firefox and geckodriver
 RUN apt-get update && apt-get install -y \
+    firefox-esr \
     wget \
-    gnupg \
-    unzip \
-    && mkdir -p /etc/apt/keyrings \
-    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub > /etc/apt/keyrings/google-chrome.key \
-    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.key] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && wget -q https://github.com/mozilla/geckodriver/releases/download/v0.36.0/geckodriver-v0.36.0-linux64.tar.gz \
+    && tar -xzf geckodriver-*.tar.gz -C /usr/local/bin/ \
+    && chmod +x /usr/local/bin/geckodriver \
+    && rm geckodriver-*.tar.gz \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install CORRECT chromedriver version (matching Chrome 141)
-RUN CHROME_VERSION=$(google-chrome --version | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+') \
-    && echo "Chrome version: $CHROME_VERSION" \
-    && wget -q https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION/linux64/chromedriver-linux64.zip \
-    && unzip chromedriver-linux64.zip \
-    && mv chromedriver-linux64/chromedriver /usr/local/bin/ \
-    && chmod +x /usr/local/bin/chromedriver \
-    && rm -rf chromedriver-linux64*
-
+# Copy application
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 COPY . .
 
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Expose port
+EXPOSE 8000
+
+# Start application
 CMD ["python", "symbol_solver.py"]
