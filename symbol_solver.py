@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 AdShare Symbol Game Solver Pro - Telegram Bot Version
-With credit monitoring and bot commands
+With BeautifulSoup dynamic login and detailed logging
 """
 
 import os
@@ -12,6 +12,7 @@ import re
 import threading
 import math
 import requests
+from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -76,7 +77,8 @@ class AdvancedSymbolGameSolver:
             'status': 'stopped',
             'last_error': None,
             'last_credits': 'Unknown',
-            'monitoring_active': False
+            'monitoring_active': False,
+            'login_attempts': 0
         }
         
         self.solver_thread = None
@@ -88,24 +90,33 @@ class AdvancedSymbolGameSolver:
     def setup_logging(self):
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.StreamHandler(),
+                logging.FileHandler('solver.log')
+            ]
         )
         self.logger = logging.getLogger(__name__)
     
     def setup_telegram(self):
         """Setup Telegram bot and get chat ID"""
         try:
+            self.logger.info("🤖 Setting up Telegram bot...")
             url = f"https://api.telegram.org/bot{CONFIG['telegram_token']}/getUpdates"
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
                 updates = response.json()
                 if updates['result']:
                     self.telegram_chat_id = updates['result'][-1]['message']['chat']['id']
-                    self.logger.info(f"✅ Telegram Chat ID: {self.telegram_chat_id}")
-                    self.send_telegram("🤖 <b>AdShare Solver Bot Started!</b>\nUse commands to control the solver.")
+                    self.logger.info(f"✅ Telegram Chat ID found: {self.telegram_chat_id}")
+                    self.send_telegram("🤖 <b>AdShare Solver Bot Started!</b>\nUse /help for commands.")
                     return True
-            self.logger.error("❌ No Telegram messages found. Send a message to your bot first.")
-            return False
+                else:
+                    self.logger.warning("⚠️ No Telegram messages found. Send a message to your bot first.")
+                    return False
+            else:
+                self.logger.error(f"❌ Telegram API error: {response.status_code}")
+                return False
         except Exception as e:
             self.logger.error(f"❌ Telegram setup failed: {e}")
             return False
@@ -113,7 +124,7 @@ class AdvancedSymbolGameSolver:
     def send_telegram(self, text, parse_mode='HTML'):
         """Send message to Telegram"""
         if not self.telegram_chat_id:
-            self.logger.error("❌ No Telegram chat ID configured")
+            self.logger.warning("⚠️ No Telegram chat ID configured")
             return False
         
         try:
@@ -124,7 +135,12 @@ class AdvancedSymbolGameSolver:
                 'parse_mode': parse_mode
             }
             response = requests.post(url, json=payload, timeout=10)
-            return response.status_code == 200
+            if response.status_code == 200:
+                self.logger.info("✅ Telegram message sent successfully")
+                return True
+            else:
+                self.logger.error(f"❌ Telegram send failed: {response.status_code}")
+                return False
         except Exception as e:
             self.logger.error(f"❌ Telegram send failed: {e}")
             return False
@@ -166,6 +182,7 @@ class AdvancedSymbolGameSolver:
             self.driver = webdriver.Chrome(options=options)
             self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             self.driver.set_page_load_timeout(30)
+            self.driver.set_script_timeout(30)
             self.logger.info("✅ Chrome started successfully!")
             return True
         except Exception as e:
@@ -190,11 +207,16 @@ class AdvancedSymbolGameSolver:
     def is_behavior_suspicious(self):
         """Rate limiting check"""
         now = time.time()
+        if self.state['session_start_time'] == 0:
+            return False
+            
         clicks_per_minute = (self.state['click_count'] / ((now - self.state['session_start_time']) / 60)) if (now - self.state['session_start_time']) > 0 else 0
         
         if clicks_per_minute > CONFIG['max_clicks_per_minute']:
+            self.logger.warning(f"⚠️ Suspicious behavior detected: {clicks_per_minute:.1f} clicks/min")
             return True
         if now - self.state['session_start_time'] > CONFIG['max_session_length']:
+            self.logger.warning("⚠️ Session too long, needs restart")
             return True
         return False
 
@@ -208,71 +230,218 @@ class AdvancedSymbolGameSolver:
             time.sleep(duration)
             self.state['is_in_cooldown'] = False
             self.state['status'] = 'running' if self.state['is_running'] else 'stopped'
+            self.logger.info("✅ Cooldown ended")
         
         threading.Thread(target=end_cooldown, daemon=True).start()
 
     def force_login(self):
-        """Login with dynamic password detection"""
+        """Advanced login with BeautifulSoup dynamic password detection"""
         max_retries = 3
+        self.state['login_attempts'] += 1
+        
         for attempt in range(max_retries):
             try:
-                self.logger.info(f"🔐 Login attempt {attempt + 1}")
+                self.logger.info(f"🔐 Login attempt {attempt + 1}/{max_retries} (Total: {self.state['login_attempts']})")
+                
+                # Navigate to login page
+                self.logger.info("🌐 Navigating to login page...")
                 self.driver.get("https://adsha.re/login")
                 time.sleep(5)
                 
-                # Find password field
-                password_field = None
-                password_selectors = [
-                    "input[type='password']",
-                    "input[name*='pass']",
-                    "input[name*='word']", 
-                    "input[name*='pwd']",
+                # Get page source and parse with BeautifulSoup
+                page_source = self.driver.page_source
+                soup = BeautifulSoup(page_source, 'html.parser')
+                
+                self.logger.info("🔍 Analyzing login form with BeautifulSoup...")
+                
+                # Find the login form
+                login_form = soup.find('form', {'name': 'login'})
+                if not login_form:
+                    self.logger.error("❌ Login form not found")
+                    continue
+                
+                self.logger.info("✅ Login form found")
+                
+                # Find all input fields in the form
+                input_fields = login_form.find_all('input')
+                self.logger.info(f"📝 Found {len(input_fields)} input fields in form")
+                
+                # Look for password field with multiple strategies
+                password_field_name = None
+                email_field_name = None
+                
+                for field in input_fields:
+                    field_name = field.get('name', '')
+                    field_type = field.get('type', '')
+                    field_value = field.get('value', '')
+                    field_placeholder = field.get('placeholder', '').lower()
+                    
+                    self.logger.info(f"  🔍 Field: name='{field_name}', type='{field_type}', value='{field_value}', placeholder='{field_placeholder}'")
+                    
+                    # Identify email field
+                    if field_name == 'mail' or field_type == 'email' or 'email' in field_placeholder:
+                        email_field_name = field_name
+                        self.logger.info(f"  ✅ Email field identified: {field_name}")
+                    
+                    # Identify password field
+                    if field_type == 'password':
+                        password_field_name = field_name
+                        self.logger.info(f"  ✅ Password field identified by type: {field_name}")
+                    elif field_value == 'Password' and field_name and field_name != 'mail':
+                        password_field_name = field_name
+                        self.logger.info(f"  ✅ Password field identified by value: {field_name}")
+                    elif 'password' in field_placeholder and field_name:
+                        password_field_name = field_name
+                        self.logger.info(f"  ✅ Password field identified by placeholder: {field_name}")
+                    elif field_name and ('pass' in field_name.lower() or 'pwd' in field_name.lower()):
+                        password_field_name = field_name
+                        self.logger.info(f"  ✅ Password field identified by name: {field_name}")
+                
+                if not email_field_name:
+                    self.logger.warning("⚠️ Email field not found, trying default selector")
+                    email_field_name = 'mail'
+                
+                if not password_field_name:
+                    self.logger.error("❌ Could not identify password field")
+                    # Try last resort - find any non-email field
+                    for field in input_fields:
+                        field_name = field.get('name', '')
+                        if field_name and field_name != email_field_name and field_name != 'submit':
+                            password_field_name = field_name
+                            self.logger.info(f"  🔑 Using fallback password field: {field_name}")
+                            break
+                
+                if not password_field_name:
+                    self.logger.error("❌ No password field found after all strategies")
+                    continue
+                
+                self.logger.info(f"🎯 Using - Email field: '{email_field_name}', Password field: '{password_field_name}'")
+                
+                # Fill email field
+                self.logger.info("📧 Filling email field...")
+                try:
+                    email_field = self.driver.find_element(By.CSS_SELECTOR, f"input[name='{email_field_name}']")
+                    email_field.clear()
+                    time.sleep(1)
+                    email_field.send_keys(self.email)
+                    self.logger.info("✅ Email filled")
+                    time.sleep(2)
+                except Exception as e:
+                    self.logger.error(f"❌ Email field interaction failed: {e}")
+                    continue
+                
+                # Fill password field
+                self.logger.info("🔑 Filling password field...")
+                try:
+                    password_field = self.driver.find_element(By.CSS_SELECTOR, f"input[name='{password_field_name}']")
+                    password_field.clear()
+                    time.sleep(1)
+                    password_field.send_keys(self.password)
+                    self.logger.info("✅ Password filled")
+                    time.sleep(2)
+                except Exception as e:
+                    self.logger.error(f"❌ Password field interaction failed: {e}")
+                    continue
+                
+                # Find and click submit button
+                self.logger.info("🚀 Looking for submit button...")
+                submit_selectors = [
+                    "button[type='submit']",
+                    "input[type='submit']",
+                    "button",
+                    "a.button",
+                    "input[value*='Login']",
+                    "input[value*='Sign']"
                 ]
                 
-                for selector in password_selectors:
+                submit_button = None
+                for selector in submit_selectors:
                     try:
                         elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
                         for element in elements:
-                            if element.is_displayed():
-                                password_field = element
+                            if element.is_displayed() and element.is_enabled():
+                                submit_button = element
+                                self.logger.info(f"✅ Submit button found with: {selector}")
                                 break
-                        if password_field:
+                        if submit_button:
                             break
                     except:
                         continue
                 
-                if not password_field:
-                    continue
+                if not submit_button:
+                    self.logger.warning("⚠️ No submit button found, trying form submit")
+                    try:
+                        form = self.driver.find_element(By.CSS_SELECTOR, "form[name='login']")
+                        form.submit()
+                        self.logger.info("✅ Form submitted")
+                    except Exception as e:
+                        self.logger.error(f"❌ Form submit failed: {e}")
+                        continue
+                else:
+                    submit_button.click()
+                    self.logger.info("✅ Submit button clicked")
                 
-                # Fill credentials
-                email_field = self.driver.find_element(By.CSS_SELECTOR, "input[name='mail'], input[type='email']")
-                email_field.clear()
-                email_field.send_keys(self.email)
-                time.sleep(2)
-                
-                password_field.clear()
-                password_field.send_keys(self.password)
-                time.sleep(2)
-                
-                # Submit form
-                submit_btn = self.driver.find_element(By.CSS_SELECTOR, "button[type='submit'], input[type='submit']")
-                submit_btn.click()
+                # Wait for login to process
+                self.logger.info("⏳ Waiting for login to process...")
                 time.sleep(8)
                 
-                # Verify login
+                # Verify login success
+                self.logger.info("🔍 Verifying login...")
                 self.driver.get("https://adsha.re/surf")
                 time.sleep(5)
                 
-                if "surf" in self.driver.current_url:
+                current_url = self.driver.current_url
+                page_title = self.driver.title
+                
+                self.logger.info(f"📍 Current URL: {current_url}")
+                self.logger.info(f"📄 Page Title: {page_title}")
+                
+                if "surf" in current_url or "dashboard" in current_url:
                     self.logger.info("✅ Login successful!")
+                    self.send_telegram("✅ <b>Login Successful!</b>\nReady to start solving games.")
                     return True
+                else:
+                    self.logger.warning("⚠️ Login verification failed")
+                    
+                    # Check for error messages
+                    error_selectors = [".error", ".alert", "[class*='error']", "[class*='alert']", ".message.error"]
+                    found_errors = []
+                    
+                    for selector in error_selectors:
+                        try:
+                            errors = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                            for error in errors:
+                                if error.is_displayed():
+                                    error_text = error.text.strip()
+                                    if error_text:
+                                        found_errors.append(error_text)
+                                        self.logger.error(f"❌ Login error: {error_text}")
+                        except:
+                            continue
+                    
+                    if found_errors:
+                        self.logger.error(f"❌ Login errors found: {found_errors}")
+                    else:
+                        self.logger.warning("⚠️ No specific error messages found")
+                    
+                    # Take screenshot for debugging
+                    try:
+                        screenshot_path = "/tmp/login_failure.png"
+                        self.driver.save_screenshot(screenshot_path)
+                        self.logger.info(f"📸 Screenshot saved: {screenshot_path}")
+                    except:
+                        self.logger.warning("⚠️ Could not take screenshot")
                     
             except Exception as e:
                 self.logger.error(f"❌ Login attempt {attempt + 1} failed: {e}")
                 if attempt < max_retries - 1:
-                    time.sleep(10)
+                    wait_time = 10 * (attempt + 1)
+                    self.logger.info(f"⏳ Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
         
-        self.state['last_error'] = "Login failed"
+        self.state['last_error'] = f"Login failed after {max_retries} attempts"
+        self.logger.error("❌ All login attempts failed")
+        self.send_telegram("❌ <b>Login Failed!</b>\nCheck logs for details.")
         return False
 
     def calculate_similarity(self, str1, str2):
@@ -316,6 +485,7 @@ class AdvancedSymbolGameSolver:
             }
             
         except Exception as e:
+            self.logger.error(f"❌ Symbol comparison error: {e}")
             return {'match': False, 'confidence': 0.0, 'exact': False}
 
     def find_best_match(self, question_svg, links):
@@ -343,7 +513,7 @@ class AdvancedSymbolGameSolver:
                             'confidence': comparison['confidence'],
                             'exact': False
                         }
-            except:
+            except Exception as e:
                 continue
         
         if exact_matches:
@@ -355,6 +525,7 @@ class AdvancedSymbolGameSolver:
     def advanced_human_click(self, element):
         """Click element with variation"""
         if self.is_behavior_suspicious() or self.state['is_in_cooldown']:
+            self.logger.info("⏳ Safety cooldown active, skipping click")
             return False
         
         try:
@@ -375,6 +546,8 @@ class AdvancedSymbolGameSolver:
             
             self.state['click_count'] += 1
             self.state['last_click_time'] = time.time()
+            self.state['last_action_time'] = time.time()
+            self.logger.info(f"🖱️ Click performed at position ({variation_x:.1f}, {variation_y:.1f})")
             return True
             
         except Exception as e:
@@ -384,9 +557,11 @@ class AdvancedSymbolGameSolver:
     def extract_credits(self):
         """Extract credit balance from page"""
         if not self.driver:
+            self.logger.warning("⚠️ No browser instance for credit extraction")
             return "BROWSER_NOT_RUNNING"
         
         try:
+            self.logger.info("💰 Extracting credit balance...")
             self.driver.refresh()
             time.sleep(5)
             page_source = self.driver.page_source
@@ -396,21 +571,26 @@ class AdvancedSymbolGameSolver:
                 r'Credits.*?(\d{1,3}(?:,\d{3})*)',
                 r'>\s*(\d[\d,]*)\s*Credits<',
                 r'balance.*?(\d[\d,]*)',
+                r'(\d+)\s*credits',
             ]
             
-            for pattern in credit_patterns:
+            for i, pattern in enumerate(credit_patterns):
                 matches = re.findall(pattern, page_source, re.IGNORECASE)
                 if matches:
                     credits = matches[0]
+                    self.logger.info(f"✅ Credits found with pattern {i+1}: {credits}")
                     return f"{credits} Credits"
             
+            self.logger.warning("⚠️ No credit pattern matched")
             return "CREDITS_NOT_FOUND"
             
         except Exception as e:
+            self.logger.error(f"❌ Credit extraction error: {e}")
             return f"ERROR: {str(e)}"
 
     def send_credit_report(self):
         """Send credit report to Telegram"""
+        self.logger.info("📊 Sending credit report...")
         credits = self.extract_credits()
         self.state['last_credits'] = credits
         
@@ -422,21 +602,30 @@ class AdvancedSymbolGameSolver:
 🔄 Status: {self.state['status']}
         """
         
-        self.send_telegram(message)
-        self.logger.info(f"📊 Credit report sent: {credits}")
+        if self.send_telegram(message):
+            self.logger.info("✅ Credit report sent successfully")
+        else:
+            self.logger.error("❌ Failed to send credit report")
 
     def monitoring_loop(self):
         """Background monitoring for credits"""
-        self.logger.info("📊 Starting credit monitoring...")
+        self.logger.info("📊 Starting credit monitoring loop...")
         self.state['monitoring_active'] = True
+        check_count = 0
         
         while self.state['monitoring_active']:
             try:
+                check_count += 1
+                self.logger.info(f"📊 Monitoring check #{check_count}")
+                
                 if self.state['is_running']:
                     self.send_credit_report()
+                else:
+                    self.logger.info("⏸️ Solver not running, skipping credit report")
                 
                 # Wait for next check
-                for _ in range(CONFIG['credit_check_interval']):
+                self.logger.info(f"⏳ Waiting {CONFIG['credit_check_interval']}s for next check...")
+                for i in range(CONFIG['credit_check_interval']):
                     if not self.state['monitoring_active']:
                         break
                     time.sleep(1)
@@ -449,8 +638,13 @@ class AdvancedSymbolGameSolver:
 
     def advanced_solve_symbol_game(self):
         """Solve one game round"""
-        if not self.state['is_running'] or self.state['is_in_cooldown']:
-            return
+        if not self.state['is_running']:
+            self.logger.info("⏸️ Solver not running")
+            return False
+            
+        if self.state['is_in_cooldown']:
+            self.logger.info("😴 Solver in cooldown")
+            return False
         
         try:
             # Take breaks occasionally
@@ -458,9 +652,10 @@ class AdvancedSymbolGameSolver:
                 self.logger.info("💤 Taking a short break...")
                 self.start_cooldown(10 + random.random() * 20)
                 self.state['consecutive_rounds'] = 0
-                return
+                return False
             
             # Find question SVG
+            self.logger.info("🔍 Looking for game elements...")
             question_svg = None
             svg_selectors = ["svg", "[class*='symbol']", "[class*='question'] svg"]
             
@@ -469,37 +664,52 @@ class AdvancedSymbolGameSolver:
                     question_svg = WebDriverWait(self.driver, 8).until(
                         EC.presence_of_element_located((By.CSS_SELECTOR, selector))
                     )
+                    self.logger.info(f"✅ Question SVG found with: {selector}")
                     break
                 except:
                     continue
             
             if not question_svg:
-                return
+                self.logger.info("⏳ Waiting for game to load...")
+                return False
             
             # Find clickable options
             links = WebDriverWait(self.driver, 5).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a[href*='adsha.re'], button, [class*='option']"))
             )
+            self.logger.info(f"🔗 Found {len(links)} clickable options")
             
             # Find and click best match
             best_match = self.find_best_match(question_svg, links)
             
-            if best_match and self.advanced_human_click(best_match['link']):
-                self.state['total_solved'] += 1
-                self.state['consecutive_rounds'] += 1
-                self.state['consecutive_fails'] = 0
-                
-                match_type = "EXACT" if best_match['exact'] else "FUZZY"
-                self.logger.info(f"✅ {match_type} Match! Confidence: {(best_match['confidence'] * 100):.1f}% | Total: {self.state['total_solved']}")
-                return True
+            if best_match:
+                if self.advanced_human_click(best_match['link']):
+                    self.state['total_solved'] += 1
+                    self.state['consecutive_rounds'] += 1
+                    self.state['consecutive_fails'] = 0
+                    
+                    match_type = "EXACT" if best_match['exact'] else "FUZZY"
+                    self.logger.info(f"✅ {match_type} Match! Confidence: {(best_match['confidence'] * 100):.1f}% | Total: {self.state['total_solved']}")
+                    return True
+                else:
+                    self.logger.error("❌ Click failed despite good match")
+                    return False
             else:
+                # No good match found
                 self.state['consecutive_fails'] += 1
+                self.logger.info(f"🔍 No high-confidence match found (Fails: {self.state['consecutive_fails']})")
+                
+                # If multiple consecutive fails, take longer break
                 if self.state['consecutive_fails'] > 3:
+                    self.logger.warning("⚠️ Multiple fails detected, extended cooldown")
                     self.start_cooldown(15)
                     self.state['consecutive_fails'] = 0
+                return False
             
         except Exception as error:
+            self.logger.error(f"❌ Error in solver: {error}")
             self.state['consecutive_fails'] += 1
+            return False
 
     def solver_loop(self):
         """Main solver loop"""
@@ -508,33 +718,46 @@ class AdvancedSymbolGameSolver:
         self.state['session_start_time'] = time.time()
         
         # Initial setup
+        self.logger.info("🌐 Navigating to surf page...")
         self.driver.get("https://adsha.re/surf")
         time.sleep(5)
         
         if "login" in self.driver.current_url:
+            self.logger.info("🔐 Login required, attempting login...")
             if not self.force_login():
                 self.logger.error("❌ Cannot login, stopping solver")
                 self.stop()
                 return
+        else:
+            self.logger.info("✅ Already on surf page")
         
         fail_streak = 0
+        round_count = 0
         
         while self.state['is_running']:
             try:
-                # Refresh periodically
+                round_count += 1
+                self.logger.info(f"🔄 Round #{round_count}")
+                
+                # Refresh every 10 minutes
                 if fail_streak % 20 == 0 and fail_streak > 0:
+                    self.logger.info("🔁 Refreshing page...")
                     self.driver.refresh()
                     time.sleep(5)
                 
                 # Solve game
                 if self.advanced_solve_symbol_game():
                     fail_streak = 0
-                    time.sleep(self.get_smart_delay())
+                    delay = self.get_smart_delay()
+                    self.logger.info(f"⏳ Waiting {delay}s before next round...")
+                    time.sleep(delay)
                 else:
                     fail_streak += 1
+                    self.logger.info(f"⏳ No game solved, waiting 8s (Fail streak: {fail_streak})...")
                     time.sleep(8)
                 
                 if fail_streak >= 25:
+                    self.logger.info("🔄 Resetting fail streak")
                     fail_streak = 0
                     time.sleep(30)
                 
@@ -551,6 +774,7 @@ class AdvancedSymbolGameSolver:
             return "❌ Solver is already running"
         
         if not self.driver:
+            self.logger.info("🔄 Setting up browser...")
             if not self.setup_browser():
                 return "❌ Browser setup failed"
         
@@ -564,13 +788,16 @@ class AdvancedSymbolGameSolver:
             self.monitoring_thread.start()
         
         self.logger.info("🚀 Solver started!")
+        self.send_telegram("🚀 <b>Solver Started!</b>\nNow solving symbol games automatically.")
         return "✅ Solver started successfully!"
 
     def stop(self):
         """Stop the solver"""
         self.state['is_running'] = False
+        self.state['monitoring_active'] = False
         self.state['status'] = 'stopped'
         self.logger.info("🛑 Solver stopped")
+        self.send_telegram("🛑 <b>Solver Stopped!</b>")
         return "✅ Solver stopped successfully!"
 
     def status(self):
@@ -586,6 +813,7 @@ class AdvancedSymbolGameSolver:
 ⏱️ Session: {int(session_duration)}s
 🔢 Clicks: {self.state['click_count']}
 ❌ Fails: {self.state['consecutive_fails']}
+🔐 Login Attempts: {self.state['login_attempts']}
         """
         
         if self.state['last_error']:
@@ -595,6 +823,7 @@ class AdvancedSymbolGameSolver:
 
     def credits(self):
         """Get current credits"""
+        self.logger.info("💰 Manual credit check requested")
         credits = self.extract_credits()
         self.state['last_credits'] = credits
         
@@ -614,6 +843,8 @@ class TelegramBot:
         """Handle Telegram updates"""
         last_update_id = None
         
+        self.logger.info("🤖 Starting Telegram bot update handler...")
+        
         while True:
             try:
                 url = f"https://api.telegram.org/bot{CONFIG['telegram_token']}/getUpdates"
@@ -626,6 +857,12 @@ class TelegramBot:
                         for update in updates['result']:
                             last_update_id = update['update_id'] + 1
                             self.process_message(update)
+                    else:
+                        self.logger.info("⏳ No Telegram updates, waiting...")
+                else:
+                    self.logger.error(f"❌ Telegram API error: {response.status_code}")
+                
+                time.sleep(1)
                 
             except Exception as e:
                 self.logger.error(f"❌ Telegram update error: {e}")
@@ -638,10 +875,14 @@ class TelegramBot:
         
         chat_id = update['message']['chat']['id']
         text = update['message']['text']
+        username = update['message']['from'].get('username', 'Unknown')
+        
+        self.logger.info(f"📨 Received message from @{username}: {text}")
         
         # Ensure we're using the correct chat ID
         if not self.solver.telegram_chat_id:
             self.solver.telegram_chat_id = chat_id
+            self.logger.info(f"✅ Set Telegram chat ID: {chat_id}")
         
         response = ""
         
@@ -669,9 +910,10 @@ class TelegramBot:
             response = "❌ Unknown command. Use /help for available commands."
         
         if response:
+            self.logger.info(f"📤 Sending response: {response[:100]}...")
             self.solver.send_telegram(response)
 
 if __name__ == '__main__':
     bot = TelegramBot()
-    bot.logger.info("🤖 Starting Telegram Bot...")
+    bot.logger.info("🤖 Starting AdShare Solver Telegram Bot...")
     bot.handle_updates()
