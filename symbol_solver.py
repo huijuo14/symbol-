@@ -131,7 +131,6 @@ class SymbolGameSolver:
         options.add_argument("--height=300")
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-images")
-        options.add_argument("--disable-javascript")
         options.add_argument("--private-window")
         
         # Firefox-specific memory optimizations
