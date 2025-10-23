@@ -8,7 +8,7 @@ import time
 import random
 import logging
 from selenium import webdriver
-from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -33,30 +33,23 @@ class SymbolGameSolver:
         self.session_start = time.time()
         
     def setup_browser(self):
-        """Setup Firefox with minimal settings"""
-        logger.info("🦊 Starting Firefox...")
-        
-        options = Options()
-        options.headless = True
-        
-        # ABSOLUTE MINIMUM preferences
-        options.set_preference("dom.ipc.processCount", 1)
-        options.set_preference("browser.tabs.remote.autostart", False)
-        options.set_preference("javascript.options.mem.max", 50000000)  # 50MB
-        
-        # Essential arguments
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        
-        try:
-            self.driver = webdriver.Firefox(options=options)
-            self.driver.set_window_size(1200, 800)
-            logger.info("✅ Firefox started successfully!")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Browser setup failed: {e}")
-            return False
+    """Setup Chrome with minimal settings"""
+    logger.info("🌐 Starting Chrome...")
+    
+    options = Options()
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1200,800")
+    
+    try:
+        self.driver = webdriver.Chrome(options=options)
+        logger.info("✅ Chrome started successfully!")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Browser setup failed: {e}")
+        return False
 
     def human_delay(self, min_seconds=1, max_seconds=3):
         """Random delay to mimic human behavior"""
