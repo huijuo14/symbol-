@@ -117,49 +117,47 @@ class SymbolGameSolver:
         self.logger = logging.getLogger(__name__)
 
     def setup_browser(self):
-        """Setup Chrome for low-resource Koyeb instance"""
-        self.logger.info("🌐 Starting Chrome with low-resource settings...")
+    """Ultra-light Chrome setup for 512MB RAM"""
+    self.logger.info("🌐 Starting ultra-light Chrome...")
+    
+    options = Options()
+    
+    # Memory-saving options
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage") 
+    options.add_argument("--disable-gpu")
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-images")
+    options.add_argument("--disable-javascript")  # Critical for low RAM
+    options.add_argument("--blink-settings=imagesEnabled=false")
+    options.add_argument("--disable-webgl")
+    options.add_argument("--disable-threaded-animation")
+    options.add_argument("--disable-threaded-scrolling")
+    options.add_argument("--disable-animations")
+    options.add_argument("--single-process")  # Use single process mode
+    options.add_argument("--memory-pressure-off")
+    options.add_argument("--max_old_space_size=128")
+    
+    # Minimal window
+    options.add_argument("--window-size=400,300")
+    
+    # Disable automation detection
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    
+    try:
+        self.driver = webdriver.Chrome(options=options)
         
-        options = Options()
-        # Memory-saving options
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--disable-extensions")
-        options.add_argument("--disable-background-timer-throttling")
-        options.add_argument("--disable-backgrounding-occluded-windows")
-        options.add_argument("--disable-renderer-backgrounding")
-        options.add_argument("--memory-pressure-off")
-        options.add_argument("--max_old_space_size=256")
+        # Set aggressive timeouts
+        self.driver.set_page_load_timeout(20)
+        self.driver.set_script_timeout(20)
         
-        # Basic stealth
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option('useAutomationExtension', False)
-        
-        # Headless with minimal resources
-        options.add_argument("--headless=new")
-        options.add_argument("--window-size=800,600")
-        options.add_argument("--disable-images")  # Save memory
-        options.add_argument("--disable-javascript")  # Try without JS first
-        
-        # Memory limits
-        options.add_argument("--max_old_space_size=256")
-        options.add_argument("--aggressive-cache-discard")
-        options.add_argument("--disable-features=VizDisplayCompositor")
-        
-        try:
-            self.driver = webdriver.Chrome(options=options)
-            
-            # Set timeouts to prevent hanging
-            self.driver.set_page_load_timeout(30)
-            self.driver.set_script_timeout(30)
-            
-            self.logger.info("✅ Chrome started successfully!")
-            return True
-        except Exception as e:
-            self.logger.error(f"❌ Browser setup failed: {e}")
-            return False
+        self.logger.info("✅ Chrome started in ultra-light mode!")
+        return True
+    except Exception as e:
+        self.logger.error(f"❌ Browser setup failed: {e}")
+        return False
 
     def smart_delay(self):
         """Simple delay"""
