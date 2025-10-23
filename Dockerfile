@@ -1,11 +1,13 @@
-FROM python:3.9-slim
+FROM python:3.9-alpine
 
-# Install Chromium only (no swap - not allowed in containers)
-RUN apt-get update && apt-get install -y \
+# Install Chromium and dependencies on Alpine
+RUN apk add --no-cache \
     chromium \
-    chromium-driver \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    chromium-chromedriver \
+    bash \
+    gcc \
+    musl-dev \
+    libffi-dev
 
 # Copy application
 WORKDIR /app
