@@ -1,8 +1,9 @@
 FROM python:3.9-slim
 
-# Install Chrome and dependencies WITHOUT apt-key
+# Install Chrome and dependencies WITH curl
 RUN apt-get update && apt-get install -y \
     wget \
+    curl \
     gnupg \
     fonts-liberation \
     libasound2 \
@@ -15,6 +16,7 @@ RUN apt-get update && apt-get install -y \
     libxdamage1 \
     libxrandr2 \
     xdg-utils \
+    unzip \
     && mkdir -p /etc/apt/keyrings \
     && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub > /etc/apt/keyrings/google-chrome.key \
     && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.key] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
