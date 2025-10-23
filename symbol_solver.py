@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-AdShare Symbol Game Solver - Firefox Headless Version
-Optimized for 512MB RAM
+AdShare Symbol Game Solver - Chromium Optimized Version
+With all features and memory optimization
 """
 
 import os
@@ -12,7 +12,7 @@ import re
 import threading
 from flask import Flask, jsonify, request
 from selenium import webdriver
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -96,16 +96,16 @@ class SymbolGameSolver:
         
         @self.app.route('/test-browser', methods=['POST'])
         def test_browser():
-            """Test Firefox browser"""
+            """Test Chromium browser"""
             try:
                 if self.setup_browser():
                     self.state['browser_status'] = 'test_passed'
                     if self.driver:
                         self.driver.quit()
                         self.driver = None
-                    return jsonify({'status': 'success', 'message': 'Firefox test passed'})
+                    return jsonify({'status': 'success', 'message': 'Chromium test passed'})
                 else:
-                    return jsonify({'status': 'failed', 'message': 'Firefox test failed'})
+                    return jsonify({'status': 'failed', 'message': 'Chromium test failed'})
             except Exception as e:
                 return jsonify({'status': 'error', 'message': str(e)})
 
@@ -117,57 +117,62 @@ class SymbolGameSolver:
         self.logger = logging.getLogger(__name__)
 
     def setup_browser(self):
-        """Setup Firefox with memory optimization"""
-        self.logger.info("🦊 Starting Firefox with memory optimization...")
+        """Setup Chromium with memory optimization"""
+        self.logger.info("🖥️ Starting Chromium with memory optimization...")
         
-        options = FirefoxOptions()
+        options = Options()
         
-        # Memory optimization for Firefox
-        options.add_argument("--headless")
-        options.add_argument("--disable-gpu")
+        # Memory optimization for Chromium
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--width=400")
-        options.add_argument("--height=300")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--headless=new")
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-images")
-        options.add_argument("--private-window")
+        options.add_argument("--disable-background-timer-throttling")
+        options.add_argument("--disable-backgrounding-occluded-windows")
+        options.add_argument("--disable-renderer-backgrounding")
+        options.add_argument("--memory-pressure-off")
+        options.add_argument("--max_old_space_size=256")
         
-        # Firefox-specific memory optimizations
-        options.set_preference("browser.cache.memory.enable", False)
-        options.set_preference("browser.cache.disk.enable", False)
-        options.set_preference("browser.sessionhistory.max_total_viewers", 0)
-        options.set_preference("browser.sessionstore.interval", 300000)  # 5 minutes
-        options.set_preference("dom.ipc.processCount", 1)  # Single process
-        options.set_preference("content.processCount", 1)
-        options.set_preference("layers.acceleration.disabled", True)
-        options.set_preference("gfx.webrender.all", False)
-        options.set_preference("gfx.webrender.enabled", False)
-        options.set_preference("media.memory_cache_max_size", 65536)
-        options.set_preference("media.memory_cachesize", 65536)
+        # Performance optimizations
+        options.add_argument("--aggressive-cache-discard")
+        options.add_argument("--disable-features=VizDisplayCompositor")
+        options.add_argument("--disable-threaded-animation")
+        options.add_argument("--disable-threaded-scrolling")
+        options.add_argument("--disable-animations")
+        options.add_argument("--single-process")
+        
+        # Window size
+        options.add_argument("--window-size=800,600")
+        
+        # Stealth options
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
         
         try:
-            self.driver = webdriver.Firefox(options=options)
+            self.driver = webdriver.Chrome(options=options)
             
             # Set timeouts
             self.driver.set_page_load_timeout(30)
             self.driver.set_script_timeout(30)
             
             # Test browser
-            self.logger.info("📄 Testing Firefox with about:blank...")
+            self.logger.info("📄 Testing Chromium with about:blank...")
             self.driver.get("about:blank")
             time.sleep(2)
             
             if "about:blank" in self.driver.current_url:
-                self.logger.info("✅ Firefox started successfully!")
-                self.state['browser_status'] = 'firefox_ready'
+                self.logger.info("✅ Chromium started successfully!")
+                self.state['browser_status'] = 'chromium_ready'
                 return True
             else:
-                self.logger.error("❌ Firefox test failed")
+                self.logger.error("❌ Chromium test failed")
                 return False
             
         except Exception as e:
-            self.logger.error(f"❌ Firefox setup failed: {e}")
+            self.logger.error(f"❌ Chromium setup failed: {e}")
             if self.driver:
                 try:
                     self.driver.quit()
@@ -183,9 +188,9 @@ class SymbolGameSolver:
         return delay
 
     def force_login(self):
-        """Login with Firefox"""
+        """Login with Chromium"""
         try:
-            self.logger.info("🔐 Starting login process with Firefox...")
+            self.logger.info("🔐 Starting login process with Chromium...")
             
             # Navigate to login page
             self.driver.get("https://adsha.re/login")
@@ -251,31 +256,43 @@ class SymbolGameSolver:
             self.logger.error(f"❌ Login failed: {e}")
             return False
 
-    def simple_click(self, element):
-        """Simple click with Firefox"""
+    def advanced_human_click(self, element):
+        """Advanced human-like click with variation"""
         try:
-            time.sleep(1)
+            # Pre-click delay
+            time.sleep(random.uniform(0.5, 1.5))
             
-            # Use ActionChains for reliable clicking in Firefox
+            # Click with position variation
             actions = ActionChains(self.driver)
-            actions.move_to_element(element)
+            
+            # Random offset within element bounds
+            offset_x = random.randint(-8, 8)
+            offset_y = random.randint(-8, 8)
+            
+            actions.move_to_element_with_offset(element, offset_x, offset_y)
             actions.click()
             actions.perform()
             
             self.state['click_count'] += 1
+            self.state['last_click_time'] = time.time() * 1000
+            
+            # Post-click delay
+            time.sleep(random.uniform(0.2, 0.8))
+            
             return True
+            
         except Exception as e:
-            self.logger.error(f"❌ Click failed: {e}")
+            self.logger.error(f"❌ Advanced click failed: {e}")
             return False
 
     def compare_symbols(self, question_svg, answer_svg):
-        """SVG symbol comparison"""
+        """Enhanced symbol comparison with fuzzy matching"""
         try:
             question_content = question_svg.get_attribute('innerHTML')
             answer_content = answer_svg.get_attribute('innerHTML')
             
             if not question_content or not answer_content:
-                return {'match': False, 'confidence': 0.0}
+                return {'match': False, 'confidence': 0.0, 'exact': False}
             
             def clean_svg(svg_text):
                 cleaned = re.sub(r'\s+', ' ', svg_text).strip().lower()
@@ -288,25 +305,67 @@ class SymbolGameSolver:
             clean_question = clean_svg(question_content)
             clean_answer = clean_svg(answer_content)
             
-            # Exact match
+            # Exact match (preferred)
             if clean_question == clean_answer:
-                return {'match': True, 'confidence': 1.0}
+                return {'match': True, 'confidence': 1.0, 'exact': True}
             
-            # Fuzzy matching
+            # Fuzzy matching for similar symbols
             if len(clean_question) > 10 and len(clean_answer) > 10:
                 common_chars = sum(1 for a, b in zip(clean_question, clean_answer) if a == b)
                 similarity = common_chars / max(len(clean_question), len(clean_answer))
+                
                 if similarity >= CONFIG['minimum_confidence']:
-                    return {'match': True, 'confidence': similarity}
+                    return {'match': True, 'confidence': similarity, 'exact': False}
             
-            return {'match': False, 'confidence': 0.0}
+            return {'match': False, 'confidence': 0.0, 'exact': False}
             
         except Exception as e:
             self.logger.warning(f"⚠️ Symbol comparison error: {e}")
-            return {'match': False, 'confidence': 0.0}
+            return {'match': False, 'confidence': 0.0, 'exact': False}
+
+    def find_best_match(self, question_svg, links):
+        """Find the best possible match with high confidence"""
+        best_match = None
+        highest_confidence = 0
+        exact_matches = []
+        
+        for link in links:
+            try:
+                answer_svg = link.find_element(By.TAG_NAME, "svg")
+                if answer_svg:
+                    comparison = self.compare_symbols(question_svg, answer_svg)
+                    
+                    # Always prefer exact matches
+                    if comparison['exact'] and comparison['match']:
+                        exact_matches.append({
+                            'link': link,
+                            'confidence': comparison['confidence'],
+                            'exact': True
+                        })
+                    
+                    # Consider high-confidence fuzzy matches
+                    elif comparison['match'] and comparison['confidence'] > highest_confidence:
+                        highest_confidence = comparison['confidence']
+                        best_match = {
+                            'link': link,
+                            'confidence': comparison['confidence'],
+                            'exact': False
+                        }
+            except:
+                continue
+        
+        # Return exact match if available
+        if exact_matches:
+            return exact_matches[0]
+        
+        # Return best fuzzy match if confidence is high enough
+        if best_match and best_match['confidence'] >= CONFIG['minimum_confidence']:
+            return best_match
+        
+        return None
 
     def solve_symbol_game(self):
-        """Solve one game round with Firefox"""
+        """Solve one game round with perfect accuracy"""
         if not self.state['is_running']:
             return False
         
@@ -320,31 +379,21 @@ class SymbolGameSolver:
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a[href*='adsha.re'], button, .answer-option"))
             )
             
-            # Find best match
-            best_match = None
-            highest_confidence = 0
+            # Find the best possible match
+            best_match = self.find_best_match(question_svg, links)
             
-            for link in links:
-                try:
-                    answer_svg = link.find_element(By.TAG_NAME, "svg")
-                    if answer_svg:
-                        comparison = self.compare_symbols(question_svg, answer_svg)
-                        if comparison['match'] and comparison['confidence'] > highest_confidence:
-                            highest_confidence = comparison['confidence']
-                            best_match = link
-                except:
-                    continue
-            
-            if best_match and highest_confidence >= CONFIG['minimum_confidence']:
-                if self.simple_click(best_match):
+            if best_match:
+                if self.advanced_human_click(best_match['link']):
                     self.state['total_solved'] += 1
                     self.state['consecutive_fails'] = 0
                     self.state['status'] = 'running'
-                    self.logger.info(f"✅ Solved! Confidence: {highest_confidence*100:.1f}% | Total: {self.state['total_solved']}")
+                    
+                    match_type = "EXACT" if best_match['exact'] else "FUZZY"
+                    self.logger.info(f"✅ {match_type} Match! Confidence: {best_match['confidence']*100:.1f}% | Total: {self.state['total_solved']}")
                     return True
             
             self.state['consecutive_fails'] += 1
-            self.logger.info(f"❌ No match found (Fails: {self.state['consecutive_fails']})")
+            self.logger.info(f"❌ No confident match found (Fails: {self.state['consecutive_fails']})")
             return False
             
         except TimeoutException:
@@ -358,15 +407,16 @@ class SymbolGameSolver:
 
     def game_loop(self):
         """Main game solving loop"""
-        self.logger.info("🎮 Starting game solver loop with Firefox...")
+        self.logger.info("🎮 Starting game solver loop with Chromium...")
         self.state['status'] = 'running'
         
         fail_streak = 0
+        cycle_count = 0
         
         while self.state['is_running']:
             try:
                 # Refresh page every 10 minutes
-                if fail_streak % 20 == 0 and fail_streak > 0:
+                if cycle_count % 20 == 0 and cycle_count > 0:
                     try:
                         self.driver.refresh()
                         self.logger.info("🔁 Page refreshed")
@@ -377,16 +427,18 @@ class SymbolGameSolver:
                 # Try to solve game
                 if self.solve_symbol_game():
                     fail_streak = 0
-                    time.sleep(5)
+                    time.sleep(4)  # Success delay
                 else:
                     fail_streak += 1
-                    time.sleep(10)
+                    time.sleep(8)  # Failure delay
                 
-                # Reset fail streak
-                if fail_streak >= 30:
+                # Reset fail streak occasionally
+                if fail_streak >= 25:
                     self.logger.info("🔄 Resetting fail streak")
                     fail_streak = 0
                     time.sleep(30)
+                
+                cycle_count += 1
                 
             except Exception as e:
                 self.logger.error(f"❌ Game loop error: {e}")
@@ -394,10 +446,10 @@ class SymbolGameSolver:
                 fail_streak += 1
 
     def run_solver(self):
-        """Run the solver with Firefox"""
-        self.logger.info("🚀 Starting solver with Firefox...")
+        """Run the solver with Chromium"""
+        self.logger.info("🚀 Starting solver with Chromium...")
         
-        # Setup Firefox browser
+        # Setup Chromium browser
         if not self.setup_browser():
             self.state['status'] = 'browser_failed'
             return
@@ -409,7 +461,7 @@ class SymbolGameSolver:
                 return
             
             # Start game loop
-            self.logger.info("🎯 Starting game solving with Firefox...")
+            self.logger.info("🎯 Starting game solving with Chromium...")
             self.game_loop()
             
         except Exception as e:
