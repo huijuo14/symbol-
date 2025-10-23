@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-AdShare Symbol Game Solver - Koyeb Web Service Version
-Optimized for continuous operation without mouse movement
+AdShare Symbol Game Solver - Koyeb Web Service with Controls
+Fixed for low-resource environment
 """
 
 import os
@@ -9,25 +9,22 @@ import time
 import random
 import logging
 import re
-import math
 import threading
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from selenium.webdriver.common.action_chains import ActionChains
 from bs4 import BeautifulSoup
 
-# Configuration
+# Configuration optimized for low RAM
 CONFIG = {
-    'base_delay': 2000,
-    'min_delay': 1500,
-    'max_delay': 4000,
-    'max_clicks_per_minute': 15,
-    'max_session_length': 3600000,  # 1 hour
+    'base_delay': 3000,
+    'min_delay': 2000,
+    'max_delay': 5000,
+    'max_clicks_per_minute': 10,
     'minimum_confidence': 0.90,
     'enable_console_logs': True
 }
@@ -37,19 +34,19 @@ class SymbolGameSolver:
         self.driver = None
         self.state = {
             'click_count': 0,
-            'last_click_time': 0,
             'session_start_time': time.time() * 1000,
-            'is_running': True,
+            'is_running': False,  # Start stopped
             'total_solved': 0,
             'consecutive_fails': 0,
-            'is_in_cooldown': False
+            'is_in_cooldown': False,
+            'status': 'stopped'
         }
         
         self.email = "loginallapps@gmail.com"
         self.password = "@Sd2007123"
         self.setup_logging()
         
-        # Flask app for health checks
+        # Flask app for health checks and controls
         self.app = Flask(__name__)
         self.setup_flask_routes()
 
@@ -57,7 +54,7 @@ class SymbolGameSolver:
         @self.app.route('/')
         def home():
             return jsonify({
-                'status': 'running',
+                'status': self.state['status'],
                 'total_solved': self.state['total_solved'],
                 'consecutive_fails': self.state['consecutive_fails'],
                 'uptime': f"{(time.time() * 1000 - self.state['session_start_time']) / 1000:.0f}s"
@@ -69,11 +66,48 @@ class SymbolGameSolver:
         
         @self.app.route('/stats')
         def stats():
-            return jsonify({
-                'total_solved': self.state['total_solved'],
-                'consecutive_fails': self.state['consecutive_fails'],
-                'is_running': self.state['is_running']
-            })
+            return jsonify(self.state)
+        
+        @self.app.route('/start', methods=['POST'])
+        def start_solver():
+            if not self.state['is_running']:
+                self.state['is_running'] = True
+                self.state['status'] = 'starting'
+                # Start solver in background
+                solver_thread = threading.Thread(target=self.run_solver)
+                solver_thread.daemon = True
+                solver_thread.start()
+                return jsonify({'status': 'started', 'message': 'Solver starting...'})
+            return jsonify({'status': 'already_running'})
+        
+        @self.app.route('/stop', methods=['POST'])
+        def stop_solver():
+            self.state['is_running'] = False
+            self.state['status'] = 'stopped'
+            if self.driver:
+                try:
+                    self.driver.quit()
+                    self.driver = None
+                except:
+                    pass
+            return jsonify({'status': 'stopped', 'message': 'Solver stopped'})
+        
+        @self.app.route('/restart', methods=['POST'])
+        def restart_solver():
+            self.state['is_running'] = False
+            time.sleep(2)
+            if self.driver:
+                try:
+                    self.driver.quit()
+                    self.driver = None
+                except:
+                    pass
+            self.state['is_running'] = True
+            self.state['status'] = 'restarting'
+            solver_thread = threading.Thread(target=self.run_solver)
+            solver_thread.daemon = True
+            solver_thread.start()
+            return jsonify({'status': 'restarting', 'message': 'Solver restarting...'})
 
     def setup_logging(self):
         logging.basicConfig(
@@ -83,22 +117,44 @@ class SymbolGameSolver:
         self.logger = logging.getLogger(__name__)
 
     def setup_browser(self):
-        """Setup Chrome for Koyeb"""
-        self.logger.info("🌐 Starting Chrome for Koyeb...")
+        """Setup Chrome for low-resource Koyeb instance"""
+        self.logger.info("🌐 Starting Chrome with low-resource settings...")
         
         options = Options()
+        # Memory-saving options
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-background-timer-throttling")
+        options.add_argument("--disable-backgrounding-occluded-windows")
+        options.add_argument("--disable-renderer-backgrounding")
+        options.add_argument("--memory-pressure-off")
+        options.add_argument("--max_old_space_size=256")
+        
+        # Basic stealth
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
+        
+        # Headless with minimal resources
         options.add_argument("--headless=new")
-        options.add_argument("--window-size=1200,800")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--disable-extensions")
+        options.add_argument("--window-size=800,600")
+        options.add_argument("--disable-images")  # Save memory
+        options.add_argument("--disable-javascript")  # Try without JS first
+        
+        # Memory limits
+        options.add_argument("--max_old_space_size=256")
+        options.add_argument("--aggressive-cache-discard")
+        options.add_argument("--disable-features=VizDisplayCompositor")
         
         try:
             self.driver = webdriver.Chrome(options=options)
+            
+            # Set timeouts to prevent hanging
+            self.driver.set_page_load_timeout(30)
+            self.driver.set_script_timeout(30)
+            
             self.logger.info("✅ Chrome started successfully!")
             return True
         except Exception as e:
@@ -106,22 +162,18 @@ class SymbolGameSolver:
             return False
 
     def smart_delay(self):
-        """Simple delay without complex patterns"""
+        """Simple delay"""
         delay = random.uniform(CONFIG['min_delay'] / 1000, CONFIG['max_delay'] / 1000)
         time.sleep(delay)
         return delay
 
     def force_login(self):
-        """Login with dynamic password field detection"""
+        """Login with error handling"""
         try:
             self.logger.info("🔐 Attempting login...")
             
             self.driver.get("https://adsha.re/login")
-            WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
-            
-            self.smart_delay()
+            time.sleep(5)  # Simple wait instead of WebDriverWait
             
             # Parse page to find dynamic password field
             page_source = self.driver.page_source
@@ -152,7 +204,7 @@ class SymbolGameSolver:
             email_field.send_keys(self.email)
             self.logger.info("✅ Email entered")
             
-            self.smart_delay()
+            time.sleep(2)
             
             # Fill password
             password_field = self.driver.find_element(By.CSS_SELECTOR, f"input[name='{password_field_name}']")
@@ -160,7 +212,7 @@ class SymbolGameSolver:
             password_field.send_keys(self.password)
             self.logger.info("✅ Password entered")
             
-            self.smart_delay()
+            time.sleep(2)
             
             # Submit form
             form_element = self.driver.find_element(By.CSS_SELECTOR, "form[name='login']")
@@ -168,9 +220,9 @@ class SymbolGameSolver:
             self.logger.info("✅ Form submitted")
             
             # Wait for login
-            time.sleep(8)
+            time.sleep(10)
             
-            # Verify login
+            # Verify login by checking URL
             self.driver.get("https://adsha.re/surf")
             time.sleep(5)
             
@@ -178,7 +230,7 @@ class SymbolGameSolver:
                 self.logger.info("✅ Login successful!")
                 return True
             else:
-                self.logger.warning("⚠️ Login verification needed")
+                self.logger.warning("⚠️ May need manual verification")
                 return True
                 
         except Exception as e:
@@ -186,19 +238,18 @@ class SymbolGameSolver:
             return False
 
     def simple_click(self, element):
-        """Simple click without mouse movement"""
+        """Simple click without complex actions"""
         try:
-            self.smart_delay()
+            time.sleep(1)
             element.click()
             self.state['click_count'] += 1
-            self.state['last_click_time'] = time.time() * 1000
             return True
         except Exception as e:
             self.logger.error(f"❌ Click failed: {e}")
             return False
 
     def compare_symbols(self, question_svg, answer_svg):
-        """Compare SVG symbols"""
+        """Simple symbol comparison"""
         try:
             question_content = question_svg.get_attribute('innerHTML')
             answer_content = answer_svg.get_attribute('innerHTML')
@@ -208,6 +259,7 @@ class SymbolGameSolver:
             
             def clean_svg(svg_text):
                 cleaned = re.sub(r'\s+', ' ', svg_text).strip().lower()
+                # Remove variable content
                 cleaned = re.sub(r'fill:#[a-f0-9]+', '', cleaned, flags=re.IGNORECASE)
                 cleaned = re.sub(r'stroke:#[a-f0-9]+', '', cleaned, flags=re.IGNORECASE)
                 cleaned = re.sub(r'style="[^"]*"', '', cleaned)
@@ -217,35 +269,40 @@ class SymbolGameSolver:
             clean_question = clean_svg(question_content)
             clean_answer = clean_svg(answer_content)
             
+            # Exact match
             if clean_question == clean_answer:
                 return {'match': True, 'confidence': 1.0}
             
-            # Simple similarity check
-            common_chars = sum(1 for a, b in zip(clean_question, clean_answer) if a == b)
-            max_len = max(len(clean_question), len(clean_answer))
-            similarity = common_chars / max_len if max_len > 0 else 0
+            # Simple similarity
+            if len(clean_question) > 10 and len(clean_answer) > 10:
+                common_chars = sum(1 for a, b in zip(clean_question, clean_answer) if a == b)
+                similarity = common_chars / max(len(clean_question), len(clean_answer))
+                if similarity >= CONFIG['minimum_confidence']:
+                    return {'match': True, 'confidence': similarity}
             
-            return {'match': similarity >= CONFIG['minimum_confidence'], 'confidence': similarity}
+            return {'match': False, 'confidence': 0.0}
             
         except Exception as e:
             self.logger.warning(f"⚠️ Symbol comparison error: {e}")
             return {'match': False, 'confidence': 0.0}
 
     def solve_symbol_game(self):
-        """Solve one game round"""
-        if not self.state['is_running'] or self.state['is_in_cooldown']:
+        """Solve one game round with error handling"""
+        if not self.state['is_running']:
             return False
         
         try:
-            # Wait longer for game elements to appear
-            question_svg = WebDriverWait(self.driver, 15).until(
-                EC.presence_of_element_located((By.TAG_NAME, "svg"))
-            )
-            
-            # Find answer options with longer wait
-            links = WebDriverWait(self.driver, 10).until(
-                EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a[href*='adsha.re'], button, .answer-option"))
-            )
+            # Simple element finding with retry
+            for attempt in range(3):
+                try:
+                    question_svg = self.driver.find_element(By.TAG_NAME, "svg")
+                    links = self.driver.find_elements(By.CSS_SELECTOR, "a, button")
+                    break
+                except:
+                    if attempt == 2:
+                        return False
+                    time.sleep(3)
+                    continue
             
             # Find best match
             best_match = None
@@ -266,107 +323,90 @@ class SymbolGameSolver:
                 if self.simple_click(best_match):
                     self.state['total_solved'] += 1
                     self.state['consecutive_fails'] = 0
-                    self.logger.info(f"✅ Match! Confidence: {highest_confidence*100:.1f}% | Total: {self.state['total_solved']}")
+                    self.state['status'] = 'running'
+                    self.logger.info(f"✅ Solved! Confidence: {highest_confidence*100:.1f}% | Total: {self.state['total_solved']}")
                     return True
             
             self.state['consecutive_fails'] += 1
-            self.logger.info(f"❌ No confident match found (Fails: {self.state['consecutive_fails']})")
+            self.logger.info(f"❌ No match found (Fails: {self.state['consecutive_fails']})")
             return False
             
-        except TimeoutException:
-            self.state['consecutive_fails'] += 1
-            self.logger.info(f"⏳ Game elements not ready (Fails: {self.state['consecutive_fails']})")
-            return False
         except Exception as e:
             self.state['consecutive_fails'] += 1
             self.logger.error(f"❌ Game solving error: {e}")
             return False
 
-    def start_cooldown(self, duration=30000):
-        """Start cooldown period"""
-        self.state['is_in_cooldown'] = True
-        self.logger.info(f"😴 Cooldown for {duration/1000}s")
-        
-        def end_cooldown():
-            time.sleep(duration / 1000)
-            self.state['is_in_cooldown'] = False
-            self.logger.info("✅ Cooldown ended")
-        
-        thread = threading.Thread(target=end_cooldown)
-        thread.daemon = True
-        thread.start()
-
     def game_loop(self):
         """Main game solving loop"""
         self.logger.info("🎮 Starting game solver loop...")
+        self.state['status'] = 'running'
         
         fail_streak = 0
-        max_fail_streak = 20  # Increased fail tolerance for web service
         
         while self.state['is_running']:
             try:
-                # Refresh page every 5 minutes to stay active
-                if fail_streak % 10 == 0 and fail_streak > 0:
-                    self.driver.refresh()
-                    self.logger.info("🔁 Page refreshed")
-                    time.sleep(5)
+                # Refresh page every 10 minutes
+                if fail_streak % 20 == 0 and fail_streak > 0:
+                    try:
+                        self.driver.refresh()
+                        self.logger.info("🔁 Page refreshed")
+                        time.sleep(5)
+                    except:
+                        pass
                 
                 # Try to solve game
                 if self.solve_symbol_game():
                     fail_streak = 0
-                    # Short delay after success
-                    time.sleep(3)
+                    time.sleep(5)  # Success delay
                 else:
                     fail_streak += 1
-                    # Longer delay after failure
-                    time.sleep(8)
+                    time.sleep(10)  # Failure delay
                 
-                # Reset fail streak occasionally to prevent false stops
-                if fail_streak >= 50:
+                # Reset fail streak to prevent memory issues
+                if fail_streak >= 30:
                     self.logger.info("🔄 Resetting fail streak")
                     fail_streak = 0
+                    time.sleep(30)  # Long cooldown
                 
             except Exception as e:
                 self.logger.error(f"❌ Game loop error: {e}")
-                time.sleep(10)
+                time.sleep(15)
                 fail_streak += 1
 
     def run_solver(self):
-        """Run the solver (to be called in thread)"""
+        """Run the solver"""
         if not self.setup_browser():
+            self.state['status'] = 'browser_failed'
             return
         
-        # Navigate and login
-        self.driver.get("https://adsha.re/surf")
-        time.sleep(5)
-        
-        if "login" in self.driver.current_url:
-            if not self.force_login():
-                self.logger.error("❌ Cannot continue without login")
-                return
-        
-        self.logger.info("✅ Starting solver service...")
-        self.game_loop()
+        try:
+            # Navigate and login
+            self.driver.get("https://adsha.re/surf")
+            time.sleep(8)
+            
+            if "login" in self.driver.current_url:
+                if not self.force_login():
+                    self.logger.error("❌ Cannot continue without login")
+                    self.state['status'] = 'login_failed'
+                    return
+            
+            self.logger.info("✅ Starting solver service...")
+            self.game_loop()
+            
+        except Exception as e:
+            self.logger.error(f"❌ Solver crashed: {e}")
+            self.state['status'] = 'crashed'
+        finally:
+            if self.driver:
+                try:
+                    self.driver.quit()
+                except:
+                    pass
 
     def start_service(self):
-        """Start both Flask web service and solver"""
-        # Start solver in background thread
-        solver_thread = threading.Thread(target=self.run_solver)
-        solver_thread.daemon = True
-        solver_thread.start()
-        
-        # Start Flask app
+        """Start Flask web service"""
         self.logger.info("🌐 Starting Flask web service on port 8080...")
-        self.app.run(host='0.0.0.0', port=8080, debug=False)
-
-    def cleanup(self):
-        """Cleanup resources"""
-        self.state['is_running'] = False
-        if self.driver:
-            try:
-                self.driver.quit()
-            except:
-                pass
+        self.app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
 
 def main():
     solver = SymbolGameSolver()
@@ -375,10 +415,8 @@ def main():
         solver.start_service()
     except KeyboardInterrupt:
         solver.logger.info("🛑 Service stopped by user")
-        solver.cleanup()
     except Exception as e:
         solver.logger.error(f"💥 Service crashed: {e}")
-        solver.cleanup()
         raise
 
 if __name__ == '__main__':
