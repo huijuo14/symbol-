@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AdShare Symbol Game Solver - Pure Selenium Automation
+AdShare Symbol Game Solver - Pure Selenium Automation with Chrome
 """
 
 import os
@@ -33,23 +33,23 @@ class SymbolGameSolver:
         self.session_start = time.time()
         
     def setup_browser(self):
-    """Setup Chrome with minimal settings"""
-    logger.info("🌐 Starting Chrome...")
-    
-    options = Options()
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--headless=new")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1200,800")
-    
-    try:
-        self.driver = webdriver.Chrome(options=options)
-        logger.info("✅ Chrome started successfully!")
-        return True
-    except Exception as e:
-        logger.error(f"❌ Browser setup failed: {e}")
-        return False
+        """Setup Chrome with minimal settings"""
+        logger.info("🌐 Starting Chrome...")
+        
+        options = Options()
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--headless=new")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--window-size=1200,800")
+        
+        try:
+            self.driver = webdriver.Chrome(options=options)
+            logger.info("✅ Chrome started successfully!")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Browser setup failed: {e}")
+            return False
 
     def human_delay(self, min_seconds=1, max_seconds=3):
         """Random delay to mimic human behavior"""
