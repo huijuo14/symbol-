@@ -406,7 +406,7 @@ class SymbolGameSolver:
     def start_service(self):
         """Start Flask web service"""
         self.logger.info("🌐 Starting Flask web service on port 8080...")
-        self.app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
+        self.app.run(host='0.0.0.0', port=8000, debug=False, use_reloader=False)
 
 def main():
     solver = SymbolGameSolver()
