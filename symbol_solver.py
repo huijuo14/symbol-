@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-AdShare Symbol Game Solver - Step-by-Step Testing
-Starts with about:blank to test Chrome first
+AdShare Symbol Game Solver - Firefox Headless Version
+Optimized for 512MB RAM
 """
 
 import os
@@ -12,11 +12,12 @@ import re
 import threading
 from flask import Flask, jsonify, request
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.webdriver.common.action_chains import ActionChains
 from bs4 import BeautifulSoup
 
 # Configuration
@@ -95,16 +96,16 @@ class SymbolGameSolver:
         
         @self.app.route('/test-browser', methods=['POST'])
         def test_browser():
-            """Test browser without starting solver"""
+            """Test Firefox browser"""
             try:
                 if self.setup_browser():
                     self.state['browser_status'] = 'test_passed'
                     if self.driver:
                         self.driver.quit()
                         self.driver = None
-                    return jsonify({'status': 'success', 'message': 'Browser test passed'})
+                    return jsonify({'status': 'success', 'message': 'Firefox test passed'})
                 else:
-                    return jsonify({'status': 'failed', 'message': 'Browser test failed'})
+                    return jsonify({'status': 'failed', 'message': 'Firefox test failed'})
             except Exception as e:
                 return jsonify({'status': 'error', 'message': str(e)})
 
@@ -116,59 +117,58 @@ class SymbolGameSolver:
         self.logger = logging.getLogger(__name__)
 
     def setup_browser(self):
-        """Step-by-step browser testing"""
-        self.logger.info("🧪 Testing browser step-by-step...")
+        """Setup Firefox with memory optimization"""
+        self.logger.info("🦊 Starting Firefox with memory optimization...")
         
-        options = Options()
+        options = FirefoxOptions()
         
-        # Ultra-light configuration
+        # Memory optimization for Firefox
+        options.add_argument("--headless")
+        options.add_argument("--disable-gpu")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--headless=new")
+        options.add_argument("--width=400")
+        options.add_argument("--height=300")
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-images")
         options.add_argument("--disable-javascript")
-        options.add_argument("--single-process")
-        options.add_argument("--window-size=400,300")
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option('useAutomationExtension', False)
+        options.add_argument("--private-window")
+        
+        # Firefox-specific memory optimizations
+        options.set_preference("browser.cache.memory.enable", False)
+        options.set_preference("browser.cache.disk.enable", False)
+        options.set_preference("browser.sessionhistory.max_total_viewers", 0)
+        options.set_preference("browser.sessionstore.interval", 300000)  # 5 minutes
+        options.set_preference("dom.ipc.processCount", 1)  # Single process
+        options.set_preference("content.processCount", 1)
+        options.set_preference("layers.acceleration.disabled", True)
+        options.set_preference("gfx.webrender.all", False)
+        options.set_preference("gfx.webrender.enabled", False)
+        options.set_preference("media.memory_cache_max_size", 65536)
+        options.set_preference("media.memory_cachesize", 65536)
         
         try:
-            # Step 1: Start browser
-            self.logger.info("🚀 Starting Chrome...")
-            self.driver = webdriver.Chrome(options=options)
-            self.driver.set_page_load_timeout(15)
-            self.driver.set_script_timeout(15)
+            self.driver = webdriver.Firefox(options=options)
             
-            # Step 2: Test with about:blank
-            self.logger.info("📄 Testing with about:blank...")
+            # Set timeouts
+            self.driver.set_page_load_timeout(30)
+            self.driver.set_script_timeout(30)
+            
+            # Test browser
+            self.logger.info("📄 Testing Firefox with about:blank...")
             self.driver.get("about:blank")
             time.sleep(2)
             
             if "about:blank" in self.driver.current_url:
-                self.logger.info("✅ about:blank test passed!")
-                self.state['browser_status'] = 'basic_test_passed'
+                self.logger.info("✅ Firefox started successfully!")
+                self.state['browser_status'] = 'firefox_ready'
+                return True
             else:
-                self.logger.error("❌ about:blank test failed")
+                self.logger.error("❌ Firefox test failed")
                 return False
             
-            # Step 3: Test with a simple website
-            self.logger.info("🌐 Testing with httpbin.org...")
-            self.driver.get("http://httpbin.org/html")
-            time.sleep(3)
-            
-            if "httpbin" in self.driver.current_url:
-                self.logger.info("✅ HTTP test passed!")
-                self.state['browser_status'] = 'http_test_passed'
-            else:
-                self.logger.warning("⚠️ HTTP test had issues but continuing...")
-            
-            return True
-            
         except Exception as e:
-            self.logger.error(f"❌ Browser setup failed: {e}")
+            self.logger.error(f"❌ Firefox setup failed: {e}")
             if self.driver:
                 try:
                     self.driver.quit()
@@ -184,20 +184,15 @@ class SymbolGameSolver:
         return delay
 
     def force_login(self):
-        """Login with step-by-step testing"""
+        """Login with Firefox"""
         try:
-            self.logger.info("🔐 Starting login process...")
+            self.logger.info("🔐 Starting login process with Firefox...")
             
-            # Step 1: Navigate to login page
-            self.logger.info("📄 Loading login page...")
+            # Navigate to login page
             self.driver.get("https://adsha.re/login")
             time.sleep(5)
             
-            if "login" not in self.driver.current_url:
-                self.logger.warning("⚠️ Not on login page, but continuing...")
-            
-            # Step 2: Parse page
-            self.logger.info("🔍 Parsing login form...")
+            # Parse page to find dynamic password field
             page_source = self.driver.page_source
             soup = BeautifulSoup(page_source, 'html.parser')
             
@@ -220,28 +215,27 @@ class SymbolGameSolver:
             
             self.logger.info(f"🔑 Found password field: {password_field_name}")
             
-            # Step 3: Fill email
-            self.logger.info("📧 Entering email...")
+            # Fill email
             email_field = self.driver.find_element(By.CSS_SELECTOR, "input[name='mail']")
             email_field.clear()
             email_field.send_keys(self.email)
+            self.logger.info("✅ Email entered")
             time.sleep(2)
             
-            # Step 4: Fill password
-            self.logger.info("🔒 Entering password...")
+            # Fill password
             password_field = self.driver.find_element(By.CSS_SELECTOR, f"input[name='{password_field_name}']")
             password_field.clear()
             password_field.send_keys(self.password)
+            self.logger.info("✅ Password entered")
             time.sleep(2)
             
-            # Step 5: Submit
-            self.logger.info("📤 Submitting form...")
+            # Submit form
             form_element = self.driver.find_element(By.CSS_SELECTOR, "form[name='login']")
             form_element.submit()
+            self.logger.info("✅ Form submitted")
             time.sleep(8)
             
-            # Step 6: Verify login
-            self.logger.info("✅ Checking login success...")
+            # Verify login
             self.driver.get("https://adsha.re/surf")
             time.sleep(5)
             
@@ -259,10 +253,16 @@ class SymbolGameSolver:
             return False
 
     def simple_click(self, element):
-        """Simple click"""
+        """Simple click with Firefox"""
         try:
             time.sleep(1)
-            element.click()
+            
+            # Use ActionChains for reliable clicking in Firefox
+            actions = ActionChains(self.driver)
+            actions.move_to_element(element)
+            actions.click()
+            actions.perform()
+            
             self.state['click_count'] += 1
             return True
         except Exception as e:
@@ -270,7 +270,7 @@ class SymbolGameSolver:
             return False
 
     def compare_symbols(self, question_svg, answer_svg):
-        """Simple symbol comparison"""
+        """SVG symbol comparison"""
         try:
             question_content = question_svg.get_attribute('innerHTML')
             answer_content = answer_svg.get_attribute('innerHTML')
@@ -289,9 +289,11 @@ class SymbolGameSolver:
             clean_question = clean_svg(question_content)
             clean_answer = clean_svg(answer_content)
             
+            # Exact match
             if clean_question == clean_answer:
                 return {'match': True, 'confidence': 1.0}
             
+            # Fuzzy matching
             if len(clean_question) > 10 and len(clean_answer) > 10:
                 common_chars = sum(1 for a, b in zip(clean_question, clean_answer) if a == b)
                 similarity = common_chars / max(len(clean_question), len(clean_answer))
@@ -305,14 +307,19 @@ class SymbolGameSolver:
             return {'match': False, 'confidence': 0.0}
 
     def solve_symbol_game(self):
-        """Solve one game round"""
+        """Solve one game round with Firefox"""
         if not self.state['is_running']:
             return False
         
         try:
-            # Simple element finding
-            question_svg = self.driver.find_element(By.TAG_NAME, "svg")
-            links = self.driver.find_elements(By.CSS_SELECTOR, "a, button")
+            # Find game elements
+            question_svg = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "svg"))
+            )
+            
+            links = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a[href*='adsha.re'], button, .answer-option"))
+            )
             
             # Find best match
             best_match = None
@@ -341,6 +348,10 @@ class SymbolGameSolver:
             self.logger.info(f"❌ No match found (Fails: {self.state['consecutive_fails']})")
             return False
             
+        except TimeoutException:
+            self.state['consecutive_fails'] += 1
+            self.logger.info(f"⏳ Game elements not ready (Fails: {self.state['consecutive_fails']})")
+            return False
         except Exception as e:
             self.state['consecutive_fails'] += 1
             self.logger.error(f"❌ Game solving error: {e}")
@@ -348,15 +359,15 @@ class SymbolGameSolver:
 
     def game_loop(self):
         """Main game solving loop"""
-        self.logger.info("🎮 Starting game solver loop...")
+        self.logger.info("🎮 Starting game solver loop with Firefox...")
         self.state['status'] = 'running'
         
         fail_streak = 0
         
         while self.state['is_running']:
             try:
-                # Refresh page periodically
-                if fail_streak % 15 == 0 and fail_streak > 0:
+                # Refresh page every 10 minutes
+                if fail_streak % 20 == 0 and fail_streak > 0:
                     try:
                         self.driver.refresh()
                         self.logger.info("🔁 Page refreshed")
@@ -372,7 +383,8 @@ class SymbolGameSolver:
                     fail_streak += 1
                     time.sleep(10)
                 
-                if fail_streak >= 25:
+                # Reset fail streak
+                if fail_streak >= 30:
                     self.logger.info("🔄 Resetting fail streak")
                     fail_streak = 0
                     time.sleep(30)
@@ -383,22 +395,22 @@ class SymbolGameSolver:
                 fail_streak += 1
 
     def run_solver(self):
-        """Run the solver with step-by-step testing"""
-        self.logger.info("🚀 Starting solver with step-by-step testing...")
+        """Run the solver with Firefox"""
+        self.logger.info("🚀 Starting solver with Firefox...")
         
-        # Step 1: Setup browser
+        # Setup Firefox browser
         if not self.setup_browser():
             self.state['status'] = 'browser_failed'
             return
         
         try:
-            # Step 2: Login
+            # Login
             if not self.force_login():
                 self.state['status'] = 'login_failed'
                 return
             
-            # Step 3: Start game loop
-            self.logger.info("🎯 Starting game solving...")
+            # Start game loop
+            self.logger.info("🎯 Starting game solving with Firefox...")
             self.game_loop()
             
         except Exception as e:
