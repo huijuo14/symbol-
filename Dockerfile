@@ -24,9 +24,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Install ChromeDriver - SIMPLE VERSION (no version detection)
-RUN wget -q https://storage.googleapis.com/chrome-for-testing-public/122.0.6261.69/linux64/chromedriver-linux64.zip -P /tmp/ \
-    && unzip /tmp/chromedriver-linux64.zip -d /tmp/ \
+# Install correct ChromeDriver version (141.0.7390.122)
+RUN CHROME_VERSION=$(google-chrome --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+') \
+    && echo "Chrome version: $CHROME_VERSION" \
+    && wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROME_VERSION/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip \
+    && unzip /tmp/chromedriver.zip -d /tmp/ \
     && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/ \
     && chmod +x /usr/local/bin/chromedriver \
     && rm -rf /tmp/chromedriver*
@@ -35,5 +37,4 @@ WORKDIR /app
 COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 8000
 CMD ["python", "symbol_solver.py"]
