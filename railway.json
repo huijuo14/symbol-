@@ -1,0 +1,9 @@
+{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "python symbol_solver.py",
+    "restartPolicyType": "ALWAYS"
+  }
+}
