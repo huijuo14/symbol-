@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-AdShare Symbol Game Solver - Koyeb Web Service with Controls
-Fixed for low-resource environment
+AdShare Symbol Game Solver - Step-by-Step Testing
+Starts with about:blank to test Chrome first
 """
 
 import os
@@ -19,7 +19,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from bs4 import BeautifulSoup
 
-# Configuration optimized for low RAM
+# Configuration
 CONFIG = {
     'base_delay': 3000,
     'min_delay': 2000,
@@ -35,18 +35,19 @@ class SymbolGameSolver:
         self.state = {
             'click_count': 0,
             'session_start_time': time.time() * 1000,
-            'is_running': False,  # Start stopped
+            'is_running': False,
             'total_solved': 0,
             'consecutive_fails': 0,
             'is_in_cooldown': False,
-            'status': 'stopped'
+            'status': 'stopped',
+            'browser_status': 'not_started'
         }
         
         self.email = "loginallapps@gmail.com"
         self.password = "@Sd2007123"
         self.setup_logging()
         
-        # Flask app for health checks and controls
+        # Flask app
         self.app = Flask(__name__)
         self.setup_flask_routes()
 
@@ -55,6 +56,7 @@ class SymbolGameSolver:
         def home():
             return jsonify({
                 'status': self.state['status'],
+                'browser_status': self.state['browser_status'],
                 'total_solved': self.state['total_solved'],
                 'consecutive_fails': self.state['consecutive_fails'],
                 'uptime': f"{(time.time() * 1000 - self.state['session_start_time']) / 1000:.0f}s"
@@ -73,7 +75,6 @@ class SymbolGameSolver:
             if not self.state['is_running']:
                 self.state['is_running'] = True
                 self.state['status'] = 'starting'
-                # Start solver in background
                 solver_thread = threading.Thread(target=self.run_solver)
                 solver_thread.daemon = True
                 solver_thread.start()
@@ -92,22 +93,20 @@ class SymbolGameSolver:
                     pass
             return jsonify({'status': 'stopped', 'message': 'Solver stopped'})
         
-        @self.app.route('/restart', methods=['POST'])
-        def restart_solver():
-            self.state['is_running'] = False
-            time.sleep(2)
-            if self.driver:
-                try:
-                    self.driver.quit()
-                    self.driver = None
-                except:
-                    pass
-            self.state['is_running'] = True
-            self.state['status'] = 'restarting'
-            solver_thread = threading.Thread(target=self.run_solver)
-            solver_thread.daemon = True
-            solver_thread.start()
-            return jsonify({'status': 'restarting', 'message': 'Solver restarting...'})
+        @self.app.route('/test-browser', methods=['POST'])
+        def test_browser():
+            """Test browser without starting solver"""
+            try:
+                if self.setup_browser():
+                    self.state['browser_status'] = 'test_passed'
+                    if self.driver:
+                        self.driver.quit()
+                        self.driver = None
+                    return jsonify({'status': 'success', 'message': 'Browser test passed'})
+                else:
+                    return jsonify({'status': 'failed', 'message': 'Browser test failed'})
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': str(e)})
 
     def setup_logging(self):
         logging.basicConfig(
@@ -117,47 +116,66 @@ class SymbolGameSolver:
         self.logger = logging.getLogger(__name__)
 
     def setup_browser(self):
-    """Ultra-light Chrome setup for 512MB RAM"""
-    self.logger.info("🌐 Starting ultra-light Chrome...")
-    
-    options = Options()
-    
-    # Memory-saving options
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage") 
-    options.add_argument("--disable-gpu")
-    options.add_argument("--headless=new")
-    options.add_argument("--disable-extensions")
-    options.add_argument("--disable-images")
-    options.add_argument("--disable-javascript")  # Critical for low RAM
-    options.add_argument("--blink-settings=imagesEnabled=false")
-    options.add_argument("--disable-webgl")
-    options.add_argument("--disable-threaded-animation")
-    options.add_argument("--disable-threaded-scrolling")
-    options.add_argument("--disable-animations")
-    options.add_argument("--single-process")  # Use single process mode
-    options.add_argument("--memory-pressure-off")
-    options.add_argument("--max_old_space_size=128")
-    
-    # Minimal window
-    options.add_argument("--window-size=400,300")
-    
-    # Disable automation detection
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    
-    try:
-        self.driver = webdriver.Chrome(options=options)
+        """Step-by-step browser testing"""
+        self.logger.info("🧪 Testing browser step-by-step...")
         
-        # Set aggressive timeouts
-        self.driver.set_page_load_timeout(20)
-        self.driver.set_script_timeout(20)
+        options = Options()
         
-        self.logger.info("✅ Chrome started in ultra-light mode!")
-        return True
-    except Exception as e:
-        self.logger.error(f"❌ Browser setup failed: {e}")
-        return False
+        # Ultra-light configuration
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--headless=new")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-images")
+        options.add_argument("--disable-javascript")
+        options.add_argument("--single-process")
+        options.add_argument("--window-size=400,300")
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
+        
+        try:
+            # Step 1: Start browser
+            self.logger.info("🚀 Starting Chrome...")
+            self.driver = webdriver.Chrome(options=options)
+            self.driver.set_page_load_timeout(15)
+            self.driver.set_script_timeout(15)
+            
+            # Step 2: Test with about:blank
+            self.logger.info("📄 Testing with about:blank...")
+            self.driver.get("about:blank")
+            time.sleep(2)
+            
+            if "about:blank" in self.driver.current_url:
+                self.logger.info("✅ about:blank test passed!")
+                self.state['browser_status'] = 'basic_test_passed'
+            else:
+                self.logger.error("❌ about:blank test failed")
+                return False
+            
+            # Step 3: Test with a simple website
+            self.logger.info("🌐 Testing with httpbin.org...")
+            self.driver.get("http://httpbin.org/html")
+            time.sleep(3)
+            
+            if "httpbin" in self.driver.current_url:
+                self.logger.info("✅ HTTP test passed!")
+                self.state['browser_status'] = 'http_test_passed'
+            else:
+                self.logger.warning("⚠️ HTTP test had issues but continuing...")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"❌ Browser setup failed: {e}")
+            if self.driver:
+                try:
+                    self.driver.quit()
+                except:
+                    pass
+                self.driver = None
+            return False
 
     def smart_delay(self):
         """Simple delay"""
@@ -166,14 +184,20 @@ class SymbolGameSolver:
         return delay
 
     def force_login(self):
-        """Login with error handling"""
+        """Login with step-by-step testing"""
         try:
-            self.logger.info("🔐 Attempting login...")
+            self.logger.info("🔐 Starting login process...")
             
+            # Step 1: Navigate to login page
+            self.logger.info("📄 Loading login page...")
             self.driver.get("https://adsha.re/login")
-            time.sleep(5)  # Simple wait instead of WebDriverWait
+            time.sleep(5)
             
-            # Parse page to find dynamic password field
+            if "login" not in self.driver.current_url:
+                self.logger.warning("⚠️ Not on login page, but continuing...")
+            
+            # Step 2: Parse page
+            self.logger.info("🔍 Parsing login form...")
             page_source = self.driver.page_source
             soup = BeautifulSoup(page_source, 'html.parser')
             
@@ -194,41 +218,40 @@ class SymbolGameSolver:
                 self.logger.error("❌ Password field not detected")
                 return False
             
-            self.logger.info(f"🔑 Password field: {password_field_name}")
+            self.logger.info(f"🔑 Found password field: {password_field_name}")
             
-            # Fill email
+            # Step 3: Fill email
+            self.logger.info("📧 Entering email...")
             email_field = self.driver.find_element(By.CSS_SELECTOR, "input[name='mail']")
             email_field.clear()
             email_field.send_keys(self.email)
-            self.logger.info("✅ Email entered")
-            
             time.sleep(2)
             
-            # Fill password
+            # Step 4: Fill password
+            self.logger.info("🔒 Entering password...")
             password_field = self.driver.find_element(By.CSS_SELECTOR, f"input[name='{password_field_name}']")
             password_field.clear()
             password_field.send_keys(self.password)
-            self.logger.info("✅ Password entered")
-            
             time.sleep(2)
             
-            # Submit form
+            # Step 5: Submit
+            self.logger.info("📤 Submitting form...")
             form_element = self.driver.find_element(By.CSS_SELECTOR, "form[name='login']")
             form_element.submit()
-            self.logger.info("✅ Form submitted")
+            time.sleep(8)
             
-            # Wait for login
-            time.sleep(10)
-            
-            # Verify login by checking URL
+            # Step 6: Verify login
+            self.logger.info("✅ Checking login success...")
             self.driver.get("https://adsha.re/surf")
             time.sleep(5)
             
             if "surf" in self.driver.current_url:
-                self.logger.info("✅ Login successful!")
+                self.logger.info("🎉 Login successful! Ready for games.")
+                self.state['browser_status'] = 'logged_in'
                 return True
             else:
                 self.logger.warning("⚠️ May need manual verification")
+                self.state['browser_status'] = 'login_verification_needed'
                 return True
                 
         except Exception as e:
@@ -236,7 +259,7 @@ class SymbolGameSolver:
             return False
 
     def simple_click(self, element):
-        """Simple click without complex actions"""
+        """Simple click"""
         try:
             time.sleep(1)
             element.click()
@@ -257,7 +280,6 @@ class SymbolGameSolver:
             
             def clean_svg(svg_text):
                 cleaned = re.sub(r'\s+', ' ', svg_text).strip().lower()
-                # Remove variable content
                 cleaned = re.sub(r'fill:#[a-f0-9]+', '', cleaned, flags=re.IGNORECASE)
                 cleaned = re.sub(r'stroke:#[a-f0-9]+', '', cleaned, flags=re.IGNORECASE)
                 cleaned = re.sub(r'style="[^"]*"', '', cleaned)
@@ -267,11 +289,9 @@ class SymbolGameSolver:
             clean_question = clean_svg(question_content)
             clean_answer = clean_svg(answer_content)
             
-            # Exact match
             if clean_question == clean_answer:
                 return {'match': True, 'confidence': 1.0}
             
-            # Simple similarity
             if len(clean_question) > 10 and len(clean_answer) > 10:
                 common_chars = sum(1 for a, b in zip(clean_question, clean_answer) if a == b)
                 similarity = common_chars / max(len(clean_question), len(clean_answer))
@@ -285,22 +305,14 @@ class SymbolGameSolver:
             return {'match': False, 'confidence': 0.0}
 
     def solve_symbol_game(self):
-        """Solve one game round with error handling"""
+        """Solve one game round"""
         if not self.state['is_running']:
             return False
         
         try:
-            # Simple element finding with retry
-            for attempt in range(3):
-                try:
-                    question_svg = self.driver.find_element(By.TAG_NAME, "svg")
-                    links = self.driver.find_elements(By.CSS_SELECTOR, "a, button")
-                    break
-                except:
-                    if attempt == 2:
-                        return False
-                    time.sleep(3)
-                    continue
+            # Simple element finding
+            question_svg = self.driver.find_element(By.TAG_NAME, "svg")
+            links = self.driver.find_elements(By.CSS_SELECTOR, "a, button")
             
             # Find best match
             best_match = None
@@ -343,8 +355,8 @@ class SymbolGameSolver:
         
         while self.state['is_running']:
             try:
-                # Refresh page every 10 minutes
-                if fail_streak % 20 == 0 and fail_streak > 0:
+                # Refresh page periodically
+                if fail_streak % 15 == 0 and fail_streak > 0:
                     try:
                         self.driver.refresh()
                         self.logger.info("🔁 Page refreshed")
@@ -355,16 +367,15 @@ class SymbolGameSolver:
                 # Try to solve game
                 if self.solve_symbol_game():
                     fail_streak = 0
-                    time.sleep(5)  # Success delay
+                    time.sleep(5)
                 else:
                     fail_streak += 1
-                    time.sleep(10)  # Failure delay
+                    time.sleep(10)
                 
-                # Reset fail streak to prevent memory issues
-                if fail_streak >= 30:
+                if fail_streak >= 25:
                     self.logger.info("🔄 Resetting fail streak")
                     fail_streak = 0
-                    time.sleep(30)  # Long cooldown
+                    time.sleep(30)
                 
             except Exception as e:
                 self.logger.error(f"❌ Game loop error: {e}")
@@ -372,23 +383,22 @@ class SymbolGameSolver:
                 fail_streak += 1
 
     def run_solver(self):
-        """Run the solver"""
+        """Run the solver with step-by-step testing"""
+        self.logger.info("🚀 Starting solver with step-by-step testing...")
+        
+        # Step 1: Setup browser
         if not self.setup_browser():
             self.state['status'] = 'browser_failed'
             return
         
         try:
-            # Navigate and login
-            self.driver.get("https://adsha.re/surf")
-            time.sleep(8)
+            # Step 2: Login
+            if not self.force_login():
+                self.state['status'] = 'login_failed'
+                return
             
-            if "login" in self.driver.current_url:
-                if not self.force_login():
-                    self.logger.error("❌ Cannot continue without login")
-                    self.state['status'] = 'login_failed'
-                    return
-            
-            self.logger.info("✅ Starting solver service...")
+            # Step 3: Start game loop
+            self.logger.info("🎯 Starting game solving...")
             self.game_loop()
             
         except Exception as e:
@@ -403,7 +413,7 @@ class SymbolGameSolver:
 
     def start_service(self):
         """Start Flask web service"""
-        self.logger.info("🌐 Starting Flask web service on port 8080...")
+        self.logger.info("🌐 Starting Flask web service on port 8000...")
         self.app.run(host='0.0.0.0', port=8000, debug=False, use_reloader=False)
 
 def main():
